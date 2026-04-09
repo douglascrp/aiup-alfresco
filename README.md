@@ -62,11 +62,12 @@ See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow.
 
 **Run the workflow** inside Claude Code:
 
-   **In-Process extensions** (behaviours, web scripts, actions — deployed as JAR/AMP inside ACS):
+   **In-Process extensions** (behaviours, web scripts, actions, workflows — deployed as JAR/AMP inside ACS):
    ```
    /requirements        # Gather requirements + decide project architecture
    /scaffold            # Generate pom.xml, module.properties, module-context.xml
    /content-model       # Generate content model XML
+   /workflow            # Generate Activiti BPMN process + workflow task model (optional)
    /web-scripts         # Generate Web Script descriptors & controllers
    /behaviours          # Scaffold behaviours/policies
    /actions             # Scaffold action executors
@@ -100,7 +101,8 @@ See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow.
 |---------|-----|-----------|--------|
 | `/requirements` | Both | 1st | Requirements document (Markdown) + **project architecture decision** |
 | `/scaffold` | Both | 2nd | `pom.xml`, `module.properties`, `module-context.xml` (in-process); `pom.xml`, `Application.java`, `application.properties` (out-of-process); aggregator POM + both sub-module skeletons (mixed) |
-| `/content-model` | In-Process | 3rd | Content model XML + Spring bootstrap context |
+| `/content-model` | In-Process | 3rd | Content model XML + Spring bootstrap context + Java model constants interface |
+| `/workflow` | In-Process | 4th | Activiti BPMN process + workflow task content model + bootstrap registration + i18n bundle |
 | `/web-scripts` | In-Process | Any | Web Script descriptor + controller + FreeMarker template |
 | `/behaviours` | In-Process | Any | Behaviour/policy class + Spring bean wiring |
 | `/actions` | In-Process | Any | `ActionExecuter` class + bean registration |
@@ -280,7 +282,6 @@ Three hooks fire automatically during development:
 The current workflow covers the core Alfresco extension paths first. The following areas are planned next so the repository can guide a broader set of real-world implementations:
 
 - **Scheduled jobs**: repository cron-style jobs, Spring/Quartz schedulers, maintenance and batch jobs, and recurring tasks initialized at bootstrap time
-- **Workflow and process customization**: workflow models, BPMN/Activiti artefacts, task listeners, task forms, and process deployment support
 - **Bootstrap and upgrade mechanics**: module components, repository patches, data bootstrap loaders, and upgrade tasks
 - **Rule framework extras**: folder rule setup patterns, rule conditions, and admin-facing rule configuration assets beyond standalone action executers
 - **Custom transforms and renditions**: custom transform engines, mimetype registration, rendition definitions, thumbnails, and transform routing

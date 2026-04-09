@@ -147,10 +147,11 @@ Standard Maven multi-module Platform JAR structure:
 ├── src/
 │   ├── main/
 │   │   ├── java/{package-path}/                              # e.g. com/acme/extensions/
-│   │   │   ├── model/                               # Content model helper classes
+│   │   │   ├── model/                               # Content model constants interfaces
 │   │   │   ├── webscript/                           # Java-backed Web Script controllers
 │   │   │   ├── behaviour/                           # Behaviour/policy classes
 │   │   │   ├── action/                              # Action executors
+│   │   │   ├── workflow/                            # Java task listeners (created by /workflow)
 │   │   │   └── service/                             # Business logic services
 │   │   └── resources/
 │   │       └── alfresco/
@@ -160,11 +161,15 @@ Standard Maven multi-module Platform JAR structure:
 │   │               ├── module.properties            # Module descriptor
 │   │               ├── module-context.xml           # Module Spring context (imports)
 │   │               ├── context/
-│   │               │   ├── bootstrap-context.xml    # Dictionary bootstrap beans
+│   │               │   ├── bootstrap-context.xml    # Dictionary + workflow bootstrap beans
 │   │               │   ├── service-context.xml      # Service/behaviour/action beans
 │   │               │   └── webscript-context.xml    # Web Script beans
-│   │               └── model/
-│   │                   └── content-model.xml        # Content model definition
+│   │               ├── model/
+│   │               │   └── content-model.xml        # Content model definition
+│   │               ├── workflow/                    # BPMN process definitions (created by /workflow)
+│   │               │   └── {processName}.bpmn
+│   │               └── messages/                   # i18n bundles (created by /workflow)
+│   │                   └── {processName}Workflow.properties
 │   └── test/
 │       └── java/{package-path}/                              # e.g. com/acme/extensions/
 │           └── {Name}IT.java                        # Integration tests
@@ -483,6 +488,91 @@ environment:
 
 ---
 
+## Workflow Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for workflows. Workflows deploy into the ACS JVM alongside other platform code.
+
+### Technology
+
+ACS 26.1 embeds **Activiti 5.22.x** (via `alfresco-activiti-embedded`). All Activiti classes are available through `alfresco-repository` (`provided` scope) — no extra POM dependency is needed.
+
+**Do NOT** use Activiti 6 or Flowable APIs (`org.flowable.*`). The engine ID registered with Alfresco's `WorkflowService` is `activiti`.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| BPMN process definition | `src/main/resources/alfresco/module/{module-id}/workflow/{processName}.bpmn` |
+| Workflow task content model | `src/main/resources/alfresco/module/{module-id}/model/{processName}-workflow-model.xml` |
+| i18n message bundle | `src/main/resources/alfresco/module/{module-id}/messages/{processName}Workflow.properties` |
+| Java task listener | `src/main/java/{package}/workflow/{Name}TaskListener.java` |
+
+### Naming Conventions
+
+- **Workflow namespace sub-prefix**: `{prefix}wf` — e.g. if the content model prefix is `acme`, the workflow prefix is `acmewf`
+- **Workflow namespace URI**: `http://www.{company}.com/model/workflow/1.0`
+- **Start task type**: `{prefix}wf:submit{ProcessName}Task` extending `bpm:startTask`
+- **User task form types**: `{prefix}wf:activiti{TaskName}` extending `bpm:activitiOutcomeTask`
+- **Outcome property**: `{prefix}wf:{taskName}Outcome` with a LIST constraint
+- **BPMN process `id` attribute**: camelCase process name — e.g. `publishWhitepaper`
+- **Process variable naming**: Alfresco maps content model property `{prefix}wf:{propName}` → process variable `{prefix}wf_{propName}` (colon replaced by underscore). Always use the **underscore form** in BPMN expressions, `execution.setVariable()`, and `task.getVariableLocal()` calls.
+
+### Spring Bootstrap Pattern
+
+Workflow BPMN definitions and workflow model XML are registered via a **`workflowDeployer`** parent bean — **not** `dictionaryModelBootstrap`.
+
+```xml
+<bean id="{prefix}.workflowBootstrap" parent="workflowDeployer">
+    <property name="workflowDefinitions">
+        <list>
+            <props>
+                <prop key="engineId">activiti</prop>
+                <prop key="location">alfresco/module/{module-id}/workflow/{processName}.bpmn</prop>
+                <prop key="mimetype">text/xml</prop>
+                <prop key="redeploy">false</prop>
+            </props>
+        </list>
+    </property>
+    <property name="models">
+        <list>
+            <value>alfresco/module/{module-id}/model/{processName}-workflow-model.xml</value>
+        </list>
+    </property>
+    <property name="labels">
+        <list>
+            <value>alfresco.module.{module-id}.messages.{processName}Workflow</value>
+        </list>
+    </property>
+</bean>
+```
+
+- When a project also has a regular content model, use **two separate beans**: `{prefix}.dictionaryBootstrap` (parent `dictionaryModelBootstrap`) for the regular model, and `{prefix}.workflowBootstrap` (parent `workflowDeployer`) for workflow artifacts. Both can coexist in `bootstrap-context.xml`.
+- Set `redeploy` to `false` on all `workflowDefinitions` entries — prevents re-deployment on every restart. To redeploy after a BPMN change, use the Workflow Console: `undeploy definition name {processName}`.
+
+### Java Task Listener Pattern
+
+- Implement `org.activiti.engine.delegate.TaskListener` (Activiti 5.x — do NOT use Flowable or Activiti 6 APIs)
+- Retrieve `ServiceRegistry` via: `Context.getProcessEngineConfiguration().getBeans().get(ActivitiConstants.SERVICE_REGISTRY_BEAN_KEY)`
+- `Context` and `ProcessEngineConfigurationImpl` are internal Activiti 5.x classes available at runtime via `alfresco-repository (provided)` — no extra dependency, but some IDEs may flag them as warnings
+- Register in BPMN: `<activiti:taskListener event="create|complete|assignment" class="{FQN}"/>`
+- Do **not** inject Spring beans via `@Autowired` in task listener classes — always use `ServiceRegistry` from the Activiti context
+
+### Workflow Testing
+
+Use the Alfresco Workflow REST API v1:
+
+| Operation | Endpoint |
+|-----------|----------|
+| Start process | `POST /alfresco/api/-default-/public/workflow/versions/1/processes` |
+| List tasks | `GET /alfresco/api/-default-/public/workflow/versions/1/tasks?assignee={user}` |
+| Complete task | `POST /alfresco/api/-default-/public/workflow/versions/1/tasks/{taskId}` body `{"action":"complete","variables":[...]}` |
+| Query process variables | `GET /alfresco/api/-default-/public/workflow/versions/1/processes/{processId}/variables` |
+| Delete process (cleanup) | `DELETE /alfresco/api/-default-/public/workflow/versions/1/processes/{processId}` |
+
+Always discover `processDefinitionId` dynamically from `GET /process-definitions?name={processName}` — never hardcode the version suffix (`:1:104`).
+
+---
+
 ## Forbidden Patterns
 
 These patterns must **never** appear in generated code. Actively check for and reject them.
@@ -505,3 +595,8 @@ These patterns must **never** appear in generated code. Actively check for and r
 | Lucene query language or `@variable` property syntax | `SearchService.LANGUAGE_LUCENE` and the `@{namespace}property` / `@prefix\:property` notation are deprecated since ACS 6.x, incompatible with Search Enterprise (Elasticsearch/OpenSearch), and produce unpredictable results with Solr 6+. Example of the forbidden pattern: `sp.setLanguage(LANGUAGE_LUCENE); sp.setQuery("@cm\\:name:\"foo\"")` | Always use `SearchService.LANGUAGE_FTS_ALFRESCO` with AFTS syntax: `sp.setLanguage(LANGUAGE_FTS_ALFRESCO); sp.setQuery("cm:name:\"foo\"")` |
 | Quoted phrase syntax in transactional AFTS queries | `@prefix\:prop:"value"` triggers `DEFAULT` analysis mode, which the DB query engine rejects with `QueryModelException: Analysis mode not supported for DB DEFAULT` | Prefix with `=`: `=@prefix\:prop:"value"` to force `IDENTIFIER`/exact-match mode |
 | Expensive operations before eligibility check in behaviours | Every upload pays the full behaviour cost even when the behaviour is not configured for that folder | Check scope/eligibility first (cheap `NodeService` calls); return early before any content streaming, hashing, or locking |
+| `org.flowable.*` imports in workflow or task listener code | ACS 26.1 uses Activiti 5.22.x — Flowable API is not on the classpath | Use `org.activiti.engine.*` from Activiti 5.x only |
+| `redeploy=true` on workflow definitions | Re-deploys on every ACS restart, creating duplicate process definition versions in the Activiti DB | Always set `<prop key="redeploy">false</prop>`; use the Workflow Console to manually undeploy before restarting |
+| Synchronous external HTTP calls inside service tasks or task listeners | Runs inside the ACS transaction; timeouts cause transaction rollback and workflow state corruption | Use Alfresco Action Service to queue async work; or use a separate boundary event for external integration |
+| Registering BPMN files via `dictionaryModelBootstrap` | `dictionaryModelBootstrap` does not know about Activiti's process engine — BPMN files are silently ignored | Use a separate `workflowDeployer` bean |
+| Omitting `bpm` import from workflow model XML | Workflow task types extend `bpm:startTask` or `bpm:activitiOutcomeTask` — the import is mandatory | Always add `<import uri="http://www.alfresco.org/model/bpm/1.0" prefix="bpm"/>` |

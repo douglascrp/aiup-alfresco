@@ -241,6 +241,7 @@ module.repo.version.min={acs-version}
         then web scripts.
     -->
     <import resource="classpath:alfresco/module/{module-id}/context/bootstrap-context.xml"/>
+    <!-- /workflow   adds: workflowDeployer bean in bootstrap-context.xml (no new import needed) -->
     <!-- /behaviours adds: service-context.xml  -->
     <!-- /web-scripts adds: webscript-context.xml (if separate from service-context.xml) -->
     <!-- /actions    adds: action-context.xml   -->
@@ -427,7 +428,7 @@ alfresco.events.defaultExchangeName=alfresco.repo.event2
 ## Workflow Position
 
 ```
-/requirements  →  /scaffold  →  /content-model  →  /behaviours  →  /web-scripts  →  /actions  →  /events  →  /docker-compose  →  /test
+/requirements  →  /scaffold  →  /content-model  →  /workflow  →  /behaviours  →  /web-scripts  →  /actions  →  /events  →  /docker-compose  →  /test
 ```
 
 - `/scaffold` must run before all generation commands: `pom.xml` must exist to compile, `module.properties` and `module-context.xml` must exist for the Platform JAR loader, and `Application.java` must exist for the Spring Boot auto-configuration to start.

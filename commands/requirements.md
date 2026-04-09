@@ -26,6 +26,11 @@ structure.
 > "Does the feature need to expose a custom REST endpoint served by the ACS
 > JVM itself?"
 
+**Q3 — Does it need a multi-step approval workflow?**
+> "Does this feature need to route content or tasks through multiple human approval
+> steps, with assignee groups, parallel reviews, outcome decisions (approve/reject),
+> timer escalations, or similar process orchestration?"
+
 **Decision table** (use to populate Section 1 — Project Architecture):
 
 | Synchronous reaction needed | REST API needed | Out-of-process reaction needed | Result |
@@ -34,6 +39,8 @@ structure.
 | No | No | Yes | **Event Handler only** |
 | Yes | Yes/No | Yes | **Mixed** (both) |
 | No | Yes | No | **Platform JAR only** |
+
+> **Workflow note**: Workflows always deploy into the Platform JAR (in-process, ACS JVM). If Q3 is Yes, the project must include a **Platform JAR** component (Mode A or Mixed). Document workflow requirements in Section 7 under "Workflow requirements" — not as a separate project.
 
 **Important:** **Mixed** means **two separate projects/deployables** in the same repository:
 - one Platform JAR / AMP loaded by ACS
@@ -97,14 +104,22 @@ Given [context], when [action], then [expected result].
 ### 7. Behaviour Requirements
 - **In-process behaviours** *(Platform JAR)*: Policies/behaviours to trigger on node events synchronously; actions to register
 - **Event handlers** *(Event Handler)*: Alfresco Java Event API event types to consume and the async action to take
+- **Workflow requirements** *(Platform JAR — only when Q3 is Yes)*:
+  - Process name and high-level flow description
+  - User task names, assignee expressions (`${initiator.properties.userName}`) or candidate groups (`GROUP_{GroupName}`)
+  - Decision outcomes per task (e.g. Approve/Reject) with LIST constraint values
+  - Parallel vs. sequential task structure
+  - Timer escalations (duration in ISO 8601, e.g. `PT5M`; escalation action)
+  - Process variables needed (name → type → initial value)
+  - Workflow content model namespace and prefix (convention: `{prefix}wf`)
 
 ### 8. Deployment Requirements
 - Docker Compose services needed
 - Environment-specific configuration
 
 ### 9. Traceability Matrix
-| Requirement ID | Project | User Story | Content Model | API | Behaviour / Handler | Test |
-|---------------|---------|------------|---------------|-----|---------------------|------|
+| Requirement ID | Project | User Story | Content Model | API | Behaviour / Handler | Workflow | Test |
+|---------------|---------|------------|---------------|-----|---------------------|----------|------|
 
 Leave the Test column empty — it will be filled by `/test`.
 Add a **Project** column so each row is clearly tied to a specific project.

@@ -93,6 +93,117 @@ void setup() throws Exception {
 - Use environment variables for `HOST`, `USERNAME`, `PASSWORD`
 - Auto-detect `sha256sum` vs `shasum` where content hashing is needed
 
+#### 3b. Workflow Integration Tests (when REQUIREMENTS.md Section 7 declares workflow requirements)
+
+Add test methods to `{Name}ContainerIT.java` for each workflow scenario:
+
+```java
+// --- Workflow Testing Setup ---
+
+private String workflowApi;
+private String processId;   // shared across @Test methods
+
+// In @BeforeAll, after the STACK starts:
+workflowApi = "http://" + host + ":" + port
+        + "/alfresco/api/-default-/public/workflow/versions/1";
+
+// Discover processDefinitionId dynamically — never hardcode the version suffix (:1:104)
+HttpRequest defReq = HttpRequest.newBuilder()
+        .uri(URI.create(workflowApi + "/process-definitions?name={processName}"))
+        .header("Authorization", authHeader)
+        .GET().build();
+HttpResponse<String> defResp = http.send(defReq, HttpResponse.BodyHandlers.ofString());
+assertEquals(200, defResp.statusCode(), "Expected 200 on process-definitions query");
+// Parse: $.list.entries[0].entry.id → processDefinitionId
+String processDefinitionId = /* parse from defResp.body() */ null;
+assertNotNull(processDefinitionId, "Process definition not found — did /workflow deploy correctly?");
+
+// --- Test methods ---
+
+@Test
+@Order(10)
+void shouldStartWorkflow() throws Exception {
+    String body = """
+        {
+            "processDefinitionId": "%s",
+            "variables": [
+                {"name": "bpm_workflowDescription", "value": "Integration test workflow", "type": "d:text"}
+            ]
+        }
+        """.formatted(processDefinitionId);
+    HttpRequest req = HttpRequest.newBuilder()
+            .uri(URI.create(workflowApi + "/processes"))
+            .header("Authorization", authHeader)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+    HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+    assertEquals(201, resp.statusCode(), "Expected 201 on process start: " + resp.body());
+    // Parse processId from resp.body() → $.entry.id
+}
+
+@Test
+@Order(20)
+void shouldShowPendingTask() throws Exception {
+    HttpRequest req = HttpRequest.newBuilder()
+            .uri(URI.create(workflowApi + "/tasks?processId=" + processId))
+            .header("Authorization", authHeader)
+            .GET().build();
+    HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+    assertEquals(200, resp.statusCode());
+    // Assert task count > 0 and verify candidateGroup / assignee
+}
+
+@Test
+@Order(30)
+void shouldCompleteTaskWithApproveOutcome() throws Exception {
+    // First retrieve the task ID
+    // Then complete with outcome variable in UNDERSCORE form (not colon)
+    String taskId = /* retrieve first task ID */ null;
+    String body = """
+        {
+            "action": "complete",
+            "variables": [
+                {"name": "{prefix}wf_{taskName}Outcome", "value": "Approve", "type": "d:text"}
+            ]
+        }
+        """;
+    HttpRequest req = HttpRequest.newBuilder()
+            .uri(URI.create(workflowApi + "/tasks/" + taskId))
+            .header("Authorization", authHeader)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+    HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+    assertEquals(200, resp.statusCode(), "Expected 200 on task complete: " + resp.body());
+}
+
+@Test
+@Order(40)
+void shouldRejectAndReturnToInitiator() throws Exception {
+    // Start a new process, complete with Reject outcome, assert workflow routes to revise task
+}
+
+@AfterAll
+void cleanupWorkflows() throws Exception {
+    // Delete all test-started processes using admin credentials
+    if (processId != null) {
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(workflowApi + "/processes/" + processId))
+                .header("Authorization", authHeader)
+                .DELETE().build();
+        http.send(req, HttpResponse.BodyHandlers.ofString());
+    }
+}
+```
+
+**Workflow test conventions:**
+- Always discover `processDefinitionId` via `GET /process-definitions?name={processName}` — never hardcode the version suffix (`:1:104`)
+- Use `POST /tasks/{taskId}` with `"action": "complete"` — not legacy patterns
+- Workflow variable names in the REST API use the **underscore form** (`{prefix}wf_{propName}`) — matches Alfresco's colon→underscore mapping
+- Clean up test processes in `@AfterAll` using admin credentials; use `DELETE /processes/{id}`
+- Timer tests: set timer duration to `PT5S` in a test-specific BPMN variant, or document separately as requiring a slow test suite
+
+---
+
 #### 4. Maven Failsafe + Testcontainers configuration
 
 Add to `{platform-project-root}/pom.xml`:
