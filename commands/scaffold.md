@@ -1,5 +1,5 @@
 ---
-description: "Scaffolds one deployable project or a mixed two-project repository from REQUIREMENTS.md: pom.xml(s), module.properties, module-context.xml, and Spring Boot Application class. Supports Platform JAR (in-process), Event Handler (out-of-process), and Mixed (both) architectures. Run this first, before /content-model."
+description: "Scaffolds one deployable project or a mixed multi-project repository from REQUIREMENTS.md: pom.xml(s), module.properties, module-context.xml, Share-tier base structure, and Spring Boot Application class. Supports Platform JAR (in-process), Share JAR (web-tier), Event Handler (out-of-process), and mixed architectures. Run this first, before /content-model."
 user-invocable: true
 allowed-tools: "Read, Write, Glob"
 ---
@@ -20,23 +20,27 @@ Must run **once**, at the start of a project, before any other generation comman
    - `artifactId` — base Maven artifact ID (default: kebab-case of extension name)
 
 3. Derive from `REQUIREMENTS.md`:
-   - `{platform-artifactId}` = `{artifactId}` in Mode A, `{artifactId}-platform` in Mode C
-   - `{events-artifactId}` = `{artifactId}` in Mode B, `{artifactId}-events` in Mode C
+   - `{platform-artifactId}` = `{artifactId}` when Platform JAR is the only project, otherwise `{artifactId}-platform`
+   - `{share-artifactId}` = `{artifactId}` when Share JAR is the only project, otherwise `{artifactId}-share`
+   - `{events-artifactId}` = `{artifactId}` when Event Handler is the only project, otherwise `{artifactId}-events`
    - `{module-id}` = `{platform-artifactId}` (the Platform JAR module's artifact ID)
    - `{java-package}` = `{groupId}.{artifactId-camelCase}` (e.g. `com.acme.duplicateguard`)
    - `{acs-version}` = target ACS version (e.g. `26.1` → property value `26.1.0`)
 
 ## Critical Separation Rule
 
-When `REQUIREMENTS.md` declares both a Platform JAR project and an Event Handler project:
+When `REQUIREMENTS.md` declares more than one project:
 
-- generate **two sibling child modules/projects**, not one combined Maven module
+- generate **separate sibling child modules/projects**, not one combined Maven module
 - keep repository addon files only in the Platform JAR project
+- keep Share-tier files only in the Share JAR project
 - keep Spring Boot event-listener files only in the Event Handler project
 - leave the repo root as an aggregator only; do **not** create a runtime `src/` tree there
 
 Forbidden output shape:
-- one Maven module containing both `src/main/resources/alfresco/module/...` and Spring Boot `Application.java` / `application.properties`
+- one Maven module containing both `src/main/resources/alfresco/module/...` and `src/main/resources/alfresco/web-extension/...`
+- one Maven module containing both Share-tier resources and Spring Boot `Application.java` / `application.properties`
+- one Maven module containing both repository addon code and Spring Boot `Application.java` / `application.properties`
 - one POM that attempts to mix `alfresco-sdk-aggregator` and `alfresco-java-sdk`
 
 ---
@@ -57,7 +61,25 @@ Single project at the repo root.
 └── src/test/java/{java-package}/
 ```
 
-### Mode B — Event Handler only (out-of-process)
+### Mode B — Share JAR only (legacy web-tier)
+Single Share-tier project at the repo root.
+
+```
+.
+├── pom.xml
+├── src/main/java/{java-package}/
+│   └── share/                         # optional Java evaluators / helpers
+├── src/main/resources/
+│   ├── alfresco/
+│   │   ├── web-extension/
+│   │   │   ├── share-config-custom.xml         # added later by /share-config
+│   │   │   ├── messages/
+│   │   │   └── site-data/extensions/           # Surf extension metadata
+│   │   └── site-webscripts/                    # Surf/Aikau web-tier scripts
+└── src/test/java/{java-package}/
+```
+
+### Mode C — Event Handler only (out-of-process)
 Single Spring Boot project at the repo root.
 
 ```
@@ -69,20 +91,26 @@ Single Spring Boot project at the repo root.
 └── src/test/java/{java-package}/
 ```
 
-### Mode C — Mixed (both)
-Aggregator POM at the repo root, two child modules as sibling directories.
+### Mode D — Mixed (two or more projects)
+Aggregator POM at the repo root, child modules as sibling directories.
 
 ```
 .
 ├── pom.xml                        ← aggregator (packaging=pom, no SDK parent)
-├── {artifactId}-platform/         ← Platform JAR child module
+├── {artifactId}-platform/         ← Platform JAR child module (include only if needed)
 │   ├── pom.xml
 │   ├── src/main/java/{java-package}/
 │   └── src/main/resources/alfresco/module/{artifactId}-platform/
 │       ├── module.properties
 │       ├── module-context.xml
 │       └── context/
-└── {artifactId}-events/           ← Event Handler child module
+├── {artifactId}-share/            ← Share JAR child module (include only if needed)
+│   ├── pom.xml
+│   └── src/main/resources/
+│       └── alfresco/
+│           ├── web-extension/
+│           └── site-webscripts/
+└── {artifactId}-events/           ← Event Handler child module (include only if needed)
     ├── pom.xml
     ├── src/main/java/{java-package}/
     │   └── Application.java
@@ -94,7 +122,7 @@ Aggregator POM at the repo root, two child modules as sibling directories.
 ## Output Files
 
 ### Platform JAR — `pom.xml`
-*(Root for Mode A; `{artifactId}-platform/pom.xml` for Mode C)*
+*(Root for Mode A; `{artifactId}-platform/pom.xml` for Mode D)*
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -200,13 +228,13 @@ Aggregator POM at the repo root, two child modules as sibling directories.
 - Do NOT add version tags to Alfresco dependencies — the Alfresco BOM manages them after it is imported
 - Pin `junit-jupiter`, `maven-compiler-plugin`, and `maven-surefire-plugin` explicitly in the generated POM
 - Do NOT add the AMP plugin unless the user explicitly requests AMP packaging
-- In Mode C, the Platform JAR child module still keeps `alfresco-sdk-aggregator` as its parent; the root aggregator is **not** this POM's parent
+- In Mode D, the Platform JAR child module still keeps `alfresco-sdk-aggregator` as its parent; the root aggregator is **not** this POM's parent
 
 ---
 
 ### Platform JAR — `module.properties`
 *`src/main/resources/alfresco/module/{module-id}/module.properties`*  
-*(Mode A at repo root; Mode C under `{artifactId}-platform/`.)*
+*(Mode A at repo root; Mode D under `{artifactId}-platform/`.)*
 
 ```properties
 module.id={groupId}.{module-id}
@@ -225,7 +253,7 @@ module.repo.version.min={acs-version}
 
 ### Platform JAR — `module-context.xml`
 *`src/main/resources/alfresco/module/{module-id}/module-context.xml`*  
-*(Mode A at repo root; Mode C under `{artifactId}-platform/`.)*
+*(Mode A at repo root; Mode D under `{artifactId}-platform/`.)*
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -256,8 +284,70 @@ module.repo.version.min={acs-version}
 
 ---
 
+### Share JAR — `pom.xml`
+*(Root for Mode B; `{artifactId}-share/pom.xml` for Mode D)*
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>{groupId}</groupId>
+    <artifactId>{share-artifactId}</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>{Human Readable Name} — Share UI</name>
+    <description>{description from REQUIREMENTS.md} (Share web-tier addon)</description>
+
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <junit.jupiter.version>5.10.2</junit.jupiter.version>
+        <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
+        <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven.compiler.plugin.version}</version>
+                <configuration><release>17</release></configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.surefire.plugin.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+**Rules:**
+- Keep the base Share-tier POM minimal; later Share-specific generators may add Surf web-tier APIs when Java evaluators or custom web-tier classes are generated
+- The Share project packages web-tier resources only; do not add repository module resources under `alfresco/module/...`
+- In Mode D, the Share child module is a sibling project beside the platform and/or events modules
+
+---
+
 ### Event Handler — `pom.xml`
-*(Root for Mode B; `{artifactId}-events/pom.xml` for Mode C)*
+*(Root for Mode C; `{artifactId}-events/pom.xml` for Mode D)*
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -323,13 +413,13 @@ module.repo.version.min={acs-version}
 **Rules:**
 - Do NOT specify a `<version>` for `alfresco-java-event-api-spring-boot-starter` — managed by the SDK parent BOM
 - `spring-boot-maven-plugin` is required to produce an executable fat JAR
-- In Mode C, the Event Handler child module still keeps `alfresco-java-sdk` as its parent; the root aggregator is **not** this POM's parent
+- In Mode D, the Event Handler child module still keeps `alfresco-java-sdk` as its parent; the root aggregator is **not** this POM's parent
 
 ---
 
 ### Event Handler — `Application.java`
 *`src/main/java/{java-package}/Application.java`*  
-*(Mode B at repo root; Mode C under `{artifactId}-events/`.)*
+*(Mode C at repo root; Mode D under `{artifactId}-events/`.)*
 
 ```java
 package {java-package};
@@ -350,7 +440,7 @@ public class Application {
 
 ### Event Handler — `application.properties`
 *`src/main/resources/application.properties`*  
-*(Mode B at repo root; Mode C under `{artifactId}-events/`.)*
+*(Mode C at repo root; Mode D under `{artifactId}-events/`.)*
 
 ```properties
 # ActiveMQ broker connection — values injected from environment variables.
@@ -370,7 +460,7 @@ alfresco.events.defaultExchangeName=alfresco.repo.event2
 ---
 
 ### Mixed — Aggregator `pom.xml`
-*(Root `pom.xml` for Mode C only)*
+*(Root `pom.xml` for Mode D only)*
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -393,7 +483,9 @@ alfresco.events.defaultExchangeName=alfresco.repo.event2
     <description>{description from REQUIREMENTS.md}</description>
 
     <modules>
+        <!-- Include only the child projects declared in REQUIREMENTS.md -->
         <module>{artifactId}-platform</module>
+        <module>{artifactId}-share</module>
         <module>{artifactId}-events</module>
     </modules>
 
@@ -408,8 +500,8 @@ alfresco.events.defaultExchangeName=alfresco.repo.event2
 **Rules:**
 - The aggregator must have `<packaging>pom</packaging>` and **no** `<parent>` element
 - Do not define dependencies or plugins in the aggregator — each child manages its own
-- `mvn clean package` from the aggregator root builds both child modules in declaration order
-- Do not create runtime source files under the repo root in Mode C
+- `mvn clean package` from the aggregator root builds all declared child modules in declaration order
+- Do not create runtime source files under the repo root in Mode D
 
 ---
 
@@ -417,11 +509,12 @@ alfresco.events.defaultExchangeName=alfresco.repo.event2
 
 | Item | Rule |
 |------|------|
-| `{module-id}` | `{platform-artifactId}`; in Mode C this means `{artifactId}-platform` |
+| `{module-id}` | `{platform-artifactId}`; in mixed mode this means `{artifactId}-platform` |
 | `{java-package}` | `{groupId}.{artifactId-nohyphens}` (e.g. `com.acme.invoiceprocessor`) |
-| Platform JAR suffix (Mode C) | `{artifactId}-platform` |
+| Platform JAR suffix (mixed mode) | `{artifactId}-platform` |
+| Share JAR suffix (mixed mode) | `{artifactId}-share` |
 | Event Handler suffix | always `{artifactId}-events` |
-| `<packaging>` | Platform JAR → `jar`; Event Handler → `jar`; Aggregator → `pom` |
+| `<packaging>` | Platform JAR → `jar`; Share JAR → `jar`; Event Handler → `jar`; Aggregator → `pom` |
 
 ---
 
@@ -433,3 +526,4 @@ alfresco.events.defaultExchangeName=alfresco.repo.event2
 
 - `/scaffold` must run before all generation commands: `pom.xml` must exist to compile, `module.properties` and `module-context.xml` must exist for the Platform JAR loader, and `Application.java` must exist for the Spring Boot auto-configuration to start.
 - After `/scaffold`, subsequent commands (`/behaviours`, `/web-scripts`, `/events`) will add sub-context imports to `module-context.xml` or handler classes to the event handler module.
+- Share-specific generators (`/share-config`, `/surf`, `/aikau`) operate only on the Share project when one is declared in `REQUIREMENTS.md`.

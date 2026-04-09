@@ -43,9 +43,13 @@ Generate a complete `compose.yaml` for an Alfresco Content Services stack.
 - Use named volumes for persistent data
 - `compose.yaml` always lives at the repository root, even in Mixed mode
 - If a Platform JAR project is present, mount or copy its built artifact from the Platform JAR `Root path`
+- If a Share JAR project is present, add a `share` service and use the Share project's `Root path` as the authoritative source for Share-tier resources
+- If a Share JAR project is present, mount or copy `src/main/resources/alfresco/web-extension/` and `src/main/resources/alfresco/site-webscripts/` from the Share project into the Share container
+- If an Aikau customization generates `src/main/resources/META-INF/resources/`, ensure those client-side resources are also copied into the Share image or otherwise made available to Share's webapp classpath/static resources
 - If an Out-of-Process Spring Boot app is present, add it as a service that depends on `activemq` and `alfresco` with `condition: service_healthy`
 - If an Out-of-Process Spring Boot app is present, its `build:` context must point to the Event Handler `Root path` from `REQUIREMENTS.md` (`.` for Event Handler only mode, `{name}-events/` for Mixed mode)
-- Never assume the Platform JAR and Event Handler share the same build context or the same deployable artifact
+- Never assume the Platform JAR, Share JAR, and Event Handler share the same build context or the same deployable artifact
+- Never mount Share resources into the `alfresco` service, and never mount repository module resources into the `share` service
 
 ## Canonical Image Tags (ACS 26.1) — use exactly as written, never infer or abbreviate
 
@@ -93,6 +97,29 @@ healthcheck:
   retries: 5
   start_period: 30s
 ```
+
+## Share Addon Deployment Notes
+
+When `REQUIREMENTS.md` declares a **Share JAR** project:
+
+- Include the `share` service even if the repository-side project is optional for that scenario
+- Use the Share project's `Root path` from Section 2 as the source for:
+  - `alfresco/web-extension/`
+  - `alfresco/site-webscripts/`
+  - `META-INF/resources/` when Aikau custom widgets are generated
+- Prefer one of these deployment approaches:
+  - bind-mount the Share resource directories for local development
+  - build a custom Share image that copies the Share project resources into the container
+- Keep deployment boundaries explicit:
+  - repository artifacts go to `alfresco`
+  - Share-tier artifacts go to `share`
+  - event-handler artifacts run as their own Spring Boot service
+
+Minimum validation expectation for Share-enabled stacks:
+
+- Share root healthcheck returns `2xx` or `3xx`
+- generated Share pages/components do not prevent Share startup
+- the generated Share resources come from the Share project root, not from the repository project
 
 ## Encryption Keystore (mandatory for ACS 26.1)
 

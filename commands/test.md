@@ -13,6 +13,7 @@ Read `REQUIREMENTS.md` and all generated artefacts from previous commands.
 Resolve the project `Root path` values from Section 2 (Project Architecture) before writing tests.
 
 - Generate Platform JAR tests only when a `Platform JAR` project exists.
+- Generate Share JAR tests only when a `Share JAR` project exists.
 - Generate Event Handler tests only when an `Event Handler` project exists.
 - In Mixed mode, write each test file under its own project root; do not place both test suites in
   the same module.
@@ -281,6 +282,70 @@ Add to `{platform-project-root}/pom.xml`:
     </plugins>
 </build>
 ```
+
+### Share JAR — Structural and Smoke Validation
+
+Generate these only when a `Share JAR` project is declared in `REQUIREMENTS.md`.
+
+#### 1. Share resource structure test
+
+`{share-project-root}/src/test/java/{package}/share/{Name}ShareResourcesTest.java`
+
+Use lightweight tests that validate generated Share resources without requiring a browser:
+
+```java
+class {Name}ShareResourcesTest {
+
+    @Test
+    void shouldLoadShareConfigWhenPresent() throws Exception {
+        // parse share-config-custom.xml when /share-config was used
+    }
+
+    @Test
+    void shouldLoadSurfExtensionMetadataWhenPresent() throws Exception {
+        // parse site-data/extensions/*.xml when /surf was used
+    }
+
+    @Test
+    void shouldLoadAikauPageArtifactsWhenPresent() throws Exception {
+        // assert descriptor + JS model files exist when /aikau was used
+    }
+}
+```
+
+Required checks:
+
+- `share-config-custom.xml` is well-formed XML when generated
+- Surf extension metadata is well-formed XML when generated
+- page descriptor XML files are well-formed
+- Aikau page-model JS and optional widget modules exist when referenced
+- message bundle keys referenced by generated Share artefacts are present
+- no Share artefacts were written under `alfresco/module/...`
+
+#### 2. Share smoke test shell script
+
+`{share-project-root}/http-tests/share-smoke.sh`
+
+Generate a plain shell script using `curl` that:
+
+- checks `http://{host}/share/` and accepts `2xx` or `3xx`
+- checks generated Share page URLs (for `/surf` or `/aikau`) and accepts login redirect or success
+- fails clearly if Share is unhealthy or a generated page path returns an unexpected status
+
+Example checks:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}' "$HOST/share/" | grep -qE '^[23]'
+curl -s -o /dev/null -w '%{http_code}' "$HOST/share/page/$PAGE_ID" | grep -qE '^[23]'
+```
+
+#### 3. Share validation conventions
+
+- Do not require browser automation by default
+- Prefer structural validation plus HTTP smoke checks over brittle DOM assertions
+- When a page requires authentication, accept `302` redirect to login as evidence that the Share route is registered
+- If the scenario includes both repo and Share projects, validate each module from its own root and then run stack-level smoke checks from the repository root
+- Keep Share tests in the Share project; do not place them in the Platform JAR or Event Handler projects
 
 > **macOS one-time setup**: Docker Desktop 29.x rejects Docker API versions below 1.40.
 > The `<environmentVariables>` block above covers CI, but local developer machines also need:

@@ -12,7 +12,7 @@ Given the user's description in "$ARGUMENTS", produce a structured requirements 
 
 ## Architecture Decision (ask first)
 
-Before writing any section, ask the following two questions if the description does
+Before writing any section, ask the following architecture questions if the description does
 not make the answers obvious.  Record the answers — they determine the whole project
 structure.
 
@@ -31,22 +31,34 @@ structure.
 > steps, with assignee groups, parallel reviews, outcome decisions (approve/reject),
 > timer escalations, or similar process orchestration?"
 
-**Decision table** (use to populate Section 1 — Project Architecture):
+**Q4 — Does it need to customize the legacy Share UI itself?**
+> "Does this feature need Share-tier artefacts such as `share-config-custom.xml`,
+> Share forms, Surf pages/components, Aikau pages/widgets, dashlets, or evaluators?"
 
-| Synchronous reaction needed | REST API needed | Out-of-process reaction needed | Result |
-|-----------------------------|-----------------|-------------------------------|--------|
-| Yes | Yes/No | No | **Platform JAR only** |
-| No | No | Yes | **Event Handler only** |
-| Yes | Yes/No | Yes | **Mixed** (both) |
-| No | Yes | No | **Platform JAR only** |
+**Q5 — Is the UI target really Share, or should it be treated as a modern external frontend?**
+> "If a user interface is needed, is the target the legacy Share web tier specifically?
+> Or should this be treated as ACA/ADF/custom frontend work that consumes ACS APIs
+> without deploying Share addon artefacts?"
+
+**Project-selection rules** (use to populate Section 2 — Project Architecture):
+
+| Need | Add this project |
+|------|------------------|
+| Same-transaction repository logic, ACS-hosted REST/Web Script, or workflow | **Platform JAR** |
+| Legacy Share-tier UI customization | **Share JAR** |
+| Asynchronous event-driven processing | **Event Handler** |
 
 > **Workflow note**: Workflows always deploy into the Platform JAR (in-process, ACS JVM). If Q3 is Yes, the project must include a **Platform JAR** component (Mode A or Mixed). Document workflow requirements in Section 7 under "Workflow requirements" — not as a separate project.
+>
+> **UI note**: If Q4 is Yes but Q5 says the target should be ACA/ADF/custom frontend instead of Share, do **not** add a Share project. Record that decision explicitly in the requirements and keep the UI outside this repository unless other requirements justify repository-side code.
 
-**Important:** **Mixed** means **two separate projects/deployables** in the same repository:
-- one Platform JAR / AMP loaded by ACS
-- one standalone Spring Boot Event Handler service
+**Important:** **Mixed** means **two or more separate projects/deployables** in the same repository:
+- a Platform JAR / AMP loaded by ACS, when repository-side code is needed
+- a Share JAR / AMP loaded by Share, when Share-tier UI customization is needed
+- a standalone Spring Boot Event Handler service, when async processing is needed
 
-It never means a single Maven module containing both repository addon code and event-listener code.
+It never means a single Maven module containing repository addon code, Share-tier code,
+and event-listener code all mixed together.
 
 ---
 
@@ -61,21 +73,22 @@ Create a file called `REQUIREMENTS.md` in the project root with:
 
 ### 2. Project Architecture
 
-Derived from the architecture decision above.  Every subsequent section must
+Derived from the architecture decision above. Every subsequent section must
 reference which project each requirement belongs to.
 
 ```
 | Project | Type | SDK | Root path | Purpose |
 |---------|------|-----|-----------|---------|
 | `{name}-platform` | Platform JAR | alfresco-sdk-aggregator 4.15.0 | `{name}-platform/` (or `.` if only project) | Synchronous behaviours, web scripts, content model |
+| `{name}-share`    | Share JAR    | Maven JAR (Share web-tier addon) | `{name}-share/` (or `.` if only project) | Share forms, Surf pages, Aikau, evaluators |
 | `{name}-events`   | Event Handler | alfresco-java-sdk 7.2.0   | `{name}-events/`   (omit if not needed)     | Async event-driven processing |
 ```
 
 Rules:
 - Include only the projects the feature actually needs.
 - When there is only one project, its root path is `.` (the repo root), not a subdirectory.
-- When both projects exist, they are siblings under the repo root and built by a top-level aggregator POM.
-- When both projects exist, they are deployed separately: the Platform JAR/AMP goes into ACS, and the Event Handler runs as an independent Spring Boot service.
+- When multiple projects exist, they are siblings under the repo root and built by a top-level aggregator POM.
+- When multiple projects exist, they are deployed separately: the Platform JAR/AMP goes into ACS, the Share JAR/AMP goes into Share, and the Event Handler runs as an independent Spring Boot service.
 - The `Root path` column is authoritative for all downstream commands; every generated file must be written under the matching project root, never under the other project's root.
 
 ### 3. User Stories
@@ -103,6 +116,11 @@ Given [context], when [action], then [expected result].
 
 ### 7. Behaviour Requirements
 - **In-process behaviours** *(Platform JAR)*: Policies/behaviours to trigger on node events synchronously; actions to register
+- **Share UI requirements** *(Share JAR)*:
+  - Share forms and `share-config-custom.xml` needs
+  - Surf pages/components/templates
+  - Aikau pages/widgets/dashlets
+  - Evaluators or visibility rules
 - **Event handlers** *(Event Handler)*: Alfresco Java Event API event types to consume and the async action to take
 - **Workflow requirements** *(Platform JAR — only when Q3 is Yes)*:
   - Process name and high-level flow description
@@ -127,8 +145,10 @@ Add a **Project** column so each row is clearly tied to a specific project.
 ---
 
 ## Instructions
-- Ask the two architecture questions before writing any section if the description is ambiguous
+- Ask the architecture questions before writing any section if the description is ambiguous
 - Default to Platform JAR packaging; use AMP only when the extension must bundle third-party libraries not already on the Alfresco classpath
+- Treat Share-tier UI work as a separate deployable when the request explicitly targets Share
+- If the requirement is really a modern ACA/ADF/custom frontend, record that and do not invent a Share project
 - Reference CLAUDE.md conventions for naming and structure
 - The output must be complete enough for `/scaffold` through `/test` to consume
 - A behaviour that must roll back a transaction is *always* in-process; a side-effect that can be retried is *always* out-of-process

@@ -95,17 +95,32 @@ See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow.
    /test                # Generate integration tests for both modules
    ```
 
+   **Legacy Share/UI extensions** (Share-tier addons such as `share-config-custom.xml`, Surf, Aikau):
+   ```
+   /requirements        # Gather requirements + decide whether Share is really the UI target
+   /scaffold            # Generate a Share-only project or a mixed repo+share/events layout
+   /share-config       # Generate Share forms and share-config-custom.xml
+   /surf               # Generate Surf pages, components, and extension metadata
+   /aikau              # Generate Aikau pages, widget models, and dashlet-style UI
+   ```
+
+   Share-tier architecture is now modeled explicitly at the planning and scaffolding level.
+   `/share-config`, `/surf`, and `/aikau` are available now.
+
 ## Commands
 
 | Command | SDK | Run order | Output |
 |---------|-----|-----------|--------|
-| `/requirements` | Both | 1st | Requirements document (Markdown) + **project architecture decision** |
-| `/scaffold` | Both | 2nd | `pom.xml`, `module.properties`, `module-context.xml` (in-process); `pom.xml`, `Application.java`, `application.properties` (out-of-process); aggregator POM + both sub-module skeletons (mixed) |
+| `/requirements` | Both | 1st | Requirements document (Markdown) + **project architecture decision** across Platform JAR, Share JAR, and/or Event Handler |
+| `/scaffold` | Both | 2nd | `pom.xml`, `module.properties`, `module-context.xml` (repo in-process); Share-tier base project layout (Share JAR); `pom.xml`, `Application.java`, `application.properties` (out-of-process); aggregator POM + sibling sub-module skeletons (mixed) |
 | `/content-model` | In-Process | 3rd | Content model XML + Spring bootstrap context + Java model constants interface |
 | `/workflow` | In-Process | 4th | Activiti BPMN process + workflow task content model + bootstrap registration + i18n bundle |
 | `/web-scripts` | In-Process | Any | Web Script descriptor + controller + FreeMarker template |
 | `/behaviours` | In-Process | Any | Behaviour/policy class + Spring bean wiring |
 | `/actions` | In-Process | Any | `ActionExecuter` class + bean registration |
+| `/share-config` | Share JAR | Any | `share-config-custom.xml` + Share message bundle + optional evaluator stub |
+| `/surf` | Share JAR | Any | Surf extension metadata + page/component web scripts + optional message bundle/evaluator |
+| `/aikau` | Share JAR | Any | Aikau page descriptors + page-model JS + optional widget module/message bundle |
 | `/events` | Out-of-Process | Any | Spring Boot event listener + ActiveMQ config |
 | `/docker-compose` | Both | Before last | `compose.yaml` with full ACS stack |
 | `/test` | Both | Last | Integration test class + HTTP test scripts |
@@ -118,6 +133,7 @@ flowchart TD
     req --> arch{"Architecture decided in REQUIREMENTS.md"}
 
     arch -->|Platform JAR only| p_scaffold["/scaffold"]
+    arch -->|Share JAR only| s_scaffold["/scaffold"]
     arch -->|Event Handler only| e_scaffold["/scaffold"]
     arch -->|Mixed| m_scaffold["/scaffold"]
 
@@ -140,18 +156,30 @@ flowchart TD
         e_compose --> e_test["/test"]
     end
 
+    subgraph share["Share JAR only"]
+        s_scaffold --> s_share["/share-config"]
+        s_scaffold --> s_surf["/surf"]
+        s_scaffold --> s_aikau["/aikau"]
+    end
+
     subgraph mixed["Mixed repository"]
         m_scaffold --> m_model["/content-model<br/>platform module, if needed"]
         m_scaffold --> m_ws["/web-scripts<br/>platform module, if needed"]
         m_scaffold --> m_beh["/behaviours<br/>platform module, if needed"]
         m_scaffold --> m_actions["/actions<br/>platform module, if needed"]
         m_scaffold --> m_events["/events<br/>events module"]
+        m_scaffold --> m_share["/share-config<br/>share module, if needed"]
+        m_scaffold --> m_surf["/surf<br/>share module, if needed"]
+        m_scaffold --> m_aikau["/aikau<br/>share module, if needed"]
         m_scaffold --> m_compose["/docker-compose"]
         m_model --> m_compose
         m_ws --> m_compose
         m_beh --> m_compose
         m_actions --> m_compose
         m_events --> m_compose
+        m_share --> m_compose
+        m_surf --> m_compose
+        m_aikau --> m_compose
         m_compose --> m_test["/test"]
     end
 ```
@@ -160,7 +188,11 @@ Notes:
 
 - `/scaffold` is the gate for every generation command; if `REQUIREMENTS.md` does not exist yet, run `/requirements` first.
 - `/content-model`, `/web-scripts`, `/behaviours`, and `/actions` are only valid when the architecture includes a Platform JAR project.
+- `/share-config` is only valid when the architecture includes a Share JAR project.
+- `/surf` is only valid when the architecture includes a Share JAR project.
+- `/aikau` is only valid when the architecture includes a Share JAR project.
 - `/events` is only valid when the architecture includes an Event Handler project.
+- Share-tier architecture is now a first-class outcome of `/requirements` and `/scaffold`.
 - `/docker-compose` is the convergence point before `/test`; container-based tests expect `compose.yaml` to exist.
 - After `/scaffold`, the applicable generator commands can be run in any needed order, although `/content-model` is usually generated early when later code binds to custom types or aspects.
 
