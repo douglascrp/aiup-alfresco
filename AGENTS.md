@@ -508,6 +508,88 @@ environment:
 
 ---
 
+## Repository Patch Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for repository patches.
+> They run inside the ACS JVM on startup, migrate **existing** data between module versions, and are
+> recorded permanently in `alf_applied_patch`. Use a bootstrap loader (`/bootstrap-loader`) for
+> **initial** data creation; use a patch for **migration** of existing content.
+
+### Technology
+
+ACS 26.1 manages patches via `org.alfresco.repo.admin.patch.AbstractPatch`. The patch service
+checks `alf_applied_patch` on every startup and skips already-applied patches. Schema version
+integers (`fixesFromSchema`, `fixesToSchema`, `targetSchema`) control applicability. The
+`targetSchema` for ACS 26.1 (alfresco-repository 7.43) is **5026**.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Patch class | `src/main/java/{package}/patch/{PatchName}Patch.java` |
+| Patch context XML | `src/main/resources/alfresco/module/{module-id}/context/patch-context.xml` |
+| Unit test | `src/test/java/{package}/patch/{PatchName}PatchTest.java` |
+
+### Naming Conventions
+
+- **Class name**: `{PatchName}Patch` — extends `AbstractPatch`
+- **Patch ID**: `patch.{module-id}.{camelCaseName}` — globally unique, used as the key in `alf_applied_patch`
+- **Bean ID**: same as the patch ID (`patch.{module-id}.{camelCaseName}`)
+- **Context file**: `patch-context.xml` — separate from `bootstrap-context.xml` and `service-context.xml`
+
+### Spring Registration Pattern
+
+```xml
+<bean id="patch.{module-id}.{camelCaseName}"
+      class="{package}.patch.{PatchName}Patch"
+      parent="basePatch">
+    <property name="id"              value="patch.{module-id}.{camelCaseName}"/>
+    <property name="description"     value="What this patch does"/>
+    <property name="fixesFromSchema" value="0"/>
+    <property name="fixesToSchema"   value="5026"/>
+    <property name="targetSchema"    value="5026"/>
+</bean>
+```
+
+- `parent="basePatch"` auto-injects: `nodeService`, `searchService`, `transactionService`, `namespaceService`.
+- Register `patch-context.xml` by adding an `<import>` to `module-context.xml`.
+- To declare a dependency on another patch: `<property name="dependsOn"><list><ref bean="..."/></list></property>`.
+
+### Java Class Pattern
+
+```java
+public class {PatchName}Patch extends AbstractPatch {
+    @Override
+    protected String applyInternal() throws Exception {
+        // use inherited: nodeService, searchService, transactionService, namespaceService
+        // return a human-readable summary of what was done
+        return "Patch applied: N nodes updated";
+    }
+}
+```
+
+- Extend `AbstractPatch` and override `applyInternal()` — this is the only method to implement.
+- Do **not** declare `nodeService`, `searchService`, etc. as fields — use the `protected` inherited fields.
+- Always close `ResultSet` in a `finally` block.
+- Always check `nodeService.exists(nodeRef)` before acting — concurrent deletes can invalidate nodes.
+- Do **not** add `@Transactional` or wrap in `retryingTransactionHelper` — `AbstractPatch` manages the transaction.
+- Use `SearchService.LANGUAGE_FTS_ALFRESCO` — never `LANGUAGE_LUCENE`.
+
+### Schema Version Values
+
+| Use case | `fixesFromSchema` | `fixesToSchema` | `targetSchema` |
+|----------|-------------------|-----------------|----------------|
+| Apply on every ACS 26.1 install | `0` | `5026` | `5026` |
+| Apply only when upgrading from a specific version | schema of previous version | `5026` | `5026` |
+
+### Re-running a Patch
+
+The patch is keyed in `alf_applied_patch` by the `id` property value. To re-run in development,
+delete the row from `alf_applied_patch` where `id = '{patch-id}'`, or change the `id` property to a
+new value. Never change the `id` in production without understanding the idempotency implications.
+
+---
+
 ## Rule Condition Model
 
 > The Maven In-Process SDK (Platform JAR) is the only deployment target for custom rule condition evaluators. They extend ACS's folder Rules engine and are available to both rule configuration and the Action Service REST API.
@@ -926,6 +1008,10 @@ These patterns must **never** appear in generated code. Actively check for and r
 | Synchronous external HTTP calls inside service tasks or task listeners | Runs inside the ACS transaction; timeouts cause transaction rollback and workflow state corruption | Use Alfresco Action Service to queue async work; or use a separate boundary event for external integration |
 | Registering BPMN files via `dictionaryModelBootstrap` | `dictionaryModelBootstrap` does not know about Activiti's process engine — BPMN files are silently ignored | Use a separate `workflowDeployer` bean |
 | Omitting `bpm` import from workflow model XML | Workflow task types extend `bpm:startTask` or `bpm:activitiOutcomeTask` — the import is mandatory | Always add `<import uri="http://www.alfresco.org/model/bpm/1.0" prefix="bpm"/>` |
+| Implementing `Patch` interface directly in a custom patch | The interface has no transaction management, no schema version checking, and no `alf_applied_patch` recording | Extend `AbstractPatch` — it handles all lifecycle, transaction, and recording automatically |
+| Declaring `nodeService`, `searchService`, or `transactionService` as fields in a patch class | `basePatch` already injects these as `protected` fields on `AbstractPatch`; redeclaring them as new fields shadows the injected ones and causes `NullPointerException` | Use the inherited `protected` fields directly — do not re-declare or re-inject them |
+| Not closing `ResultSet` in a patch | Open `ResultSet` objects hold database cursors; failing to close them causes resource exhaustion in long-running patches | Always close `ResultSet` in a `finally` block: `if (results != null) results.close()` |
+| Using a patch to create initial data on a fresh install | Patches are designed for migration of existing data; on a fresh install `fixesFromSchema=0` patches do apply, but bootstrap loaders (`parent="module.baseComponent"`) are the correct pattern for initial data | Use `/bootstrap-loader` for first-install data; use `/repository-patch` for cross-version migration |
 | Implementing `ActionConditionEvaluator` directly in a custom condition | The interface has no `init()` or `addParameterDefinitions()` support; the evaluator is never registered with the Action Service | Extend `ActionConditionEvaluatorAbstractBase` — the abstract base calls `init()` automatically when wired with `parent="action-condition-evaluator"` |
 | Overriding `evaluate()` instead of `evaluateImpl()` in a condition evaluator | `evaluate()` is implemented by `ActionConditionEvaluatorAbstractBase` and must not be overridden — it handles pre/post logic and calls `evaluateImpl()` | Override `protected boolean evaluateImpl(ActionCondition, NodeRef)` only |
 | Using `parent="action-executer"` for a condition evaluator bean | `action-executer` registers the bean as an action, not a condition; the evaluator will not appear in the rule condition list | Use `parent="action-condition-evaluator"` |

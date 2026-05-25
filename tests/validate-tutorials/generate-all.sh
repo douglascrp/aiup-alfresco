@@ -32,11 +32,12 @@ cmds_for() {
         scheduled-jobs)     echo "scaffold content-model scheduled-jobs" ;;
         bootstrap-loader)   echo "scaffold bootstrap-loader" ;;
         rule-conditions)    echo "scaffold content-model rule-conditions" ;;
+        repository-patch)   echo "scaffold content-model repository-patch" ;;
         *) return 1 ;;
     esac
 }
 
-ALL_SCENARIOS="maven-sdk-baseline content-types actions behaviours web-scripts workflows scheduled-jobs bootstrap-loader rule-conditions"
+ALL_SCENARIOS="maven-sdk-baseline content-types actions behaviours web-scripts workflows scheduled-jobs bootstrap-loader rule-conditions repository-patch"
 TARGETS="${*:-$ALL_SCENARIOS}"
 
 PASS=0
