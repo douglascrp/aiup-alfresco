@@ -580,15 +580,36 @@ This file uses Alfresco config XML format (not Spring). ACS auto-discovers it fr
 
 ### Custom Engine Pattern (Spring Boot, separate project)
 
-A custom engine is a standalone Spring Boot app with parent `org.alfresco:alfresco-transform-core:5.4.0`.
-
-**Two interfaces to implement:**
-- `TransformEngine` — declares engine name, startup message, config, and health-probe transform.
+A custom engine is a standalone Spring Boot project with parent `org.alfresco:alfresco-transform-core:5.4.0`.
+It implements two Spring `@Component` beans:
+- `TransformEngine` — declares engine name, startup message, config path, and health-probe transform.
 - `CustomTransformer` — implements `transform(sourceMimetype, inputStream, targetMimetype, outputStream, options, manager)`.
 
-The engine name returned by `getTransformerName()` must match the `transformerName` in `engine_config.json`.
+**Do NOT generate `Application.java`** — the main class `org.alfresco.transform.base.Application`
+is provided by the `alfresco-base-t-engine` dependency. Declare it in the `spring-boot-maven-plugin`
+`<mainClass>` configuration instead.
 
-Engine exposes port `8090`. Register it in `compose.yaml` with a `depends_on` from the `alfresco` service.
+The key dependency providing HTTP endpoints, ActiveMQ wiring, and the Application class is:
+```xml
+<dependency>
+    <groupId>org.alfresco</groupId>
+    <artifactId>alfresco-base-t-engine</artifactId>
+    <version>5.4.0</version>
+</dependency>
+```
+
+The engine name in `getTransformerName()` must match the `transformerName` in `engine_config.json`
+and the queue name prefix in `application.yml` (`queue.engineRequestQueue: {engineName}-engine-queue`).
+
+**ACS 26.1 Integration (Transform Router pattern):**
+- The engine registers with `transform-router`, not directly with ACS.
+- In `compose.yaml`, add to `transform-router` environment:
+  - `{ENGINE_UPPER}_URL: http://{engine-service}:8090`
+  - `TRANSFORMER_QUEUE_{ENGINE_UPPER}: {engineName}-engine-queue`
+- The engine service itself needs `ACTIVEMQ_URL`, `ACTIVEMQ_USER`, `ACTIVEMQ_PASSWORD`, and `FILE_STORE_URL`.
+- **Never add `localTransform.{name}.url`** to ACS JAVA_OPTS for ACS 26.1 — that is the ACS 25.x pattern.
+
+Engine exposes port `8090`.
 
 ---
 
@@ -1095,6 +1116,8 @@ These patterns must **never** appear in generated code. Actively check for and r
 | Using the legacy `RenditionDefinition` (Rendition Service 1) class for new renditions | Rendition Service 1 is deprecated in ACS 26.1; renditions defined with the old API may not fire through the out-of-process Transform Service | Use `org.alfresco.repo.rendition2.RenditionDefinition2Impl` with `registry` ref `renditionDefinitionRegistry2` |
 | Registering MIME types via Spring beans | The mimetype service does not discover Spring beans; the MIME type will not be registered | Place a `mimetypes-extension-map.xml` file under `alfresco/extension/mimetype/` using Alfresco config XML format |
 | Building a custom transform engine for a mimetype pair already in `alfresco-transform-core-aio` | Duplicates work, adds infrastructure complexity, and may conflict with the AIO container's routing | Verify coverage in ImageMagick, LibreOffice, PDFRenderer, and Tika before building a custom engine |
+| Generating `Application.java` in a custom T-Engine project | `alfresco-base-t-engine` already provides `org.alfresco.transform.base.Application`; a second main class causes a startup conflict | Set `<mainClass>org.alfresco.transform.base.Application</mainClass>` in the `spring-boot-maven-plugin` and omit `Application.java` |
+| Adding `localTransform.{name}.url` to ACS JAVA_OPTS for ACS 26.1 | That property is the ACS 25.x Community pattern (direct engine URL); ACS 26.1 routes transforms through `transform-router` | Register the engine with `transform-router` via `{ENGINE_UPPER}_URL` and `TRANSFORMER_QUEUE_{ENGINE_UPPER}` environment variables |
 | Implementing `Patch` interface directly in a custom patch | The interface has no transaction management, no schema version checking, and no `alf_applied_patch` recording | Extend `AbstractPatch` — it handles all lifecycle, transaction, and recording automatically |
 | Declaring `nodeService`, `searchService`, or `transactionService` as fields in a patch class | `basePatch` already injects these as `protected` fields on `AbstractPatch`; redeclaring them as new fields shadows the injected ones and causes `NullPointerException` | Use the inherited `protected` fields directly — do not re-declare or re-inject them |
 | Not closing `ResultSet` in a patch | Open `ResultSet` objects hold database cursors; failing to close them causes resource exhaustion in long-running patches | Always close `ResultSet` in a `finally` block: `if (results != null) results.close()` |

@@ -8,28 +8,21 @@ argument-hint: "[path to REQUIREMENTS.md or description]"
 
 > **Two deployment targets, one command.**
 > - The **rendition definition** deploys inside the ACS Platform JAR.
-> - The **custom transform engine** (when needed) deploys as a separate Spring Boot container.
+> - The **custom Transform Engine** (when needed) deploys as a separate Spring Boot service,
+>   following the same SPI as `https://github.com/aborroy/alf-tengine-convert2md`.
 >
-> The AIO container (`alfresco-transform-core-aio:5.4.0`) ships ImageMagick, LibreOffice,
-> PDFRenderer, and Tika. **Check whether a built-in transform already covers your
-> source/target mimetype pair** before scaffolding a custom engine.
+> **Always check the built-in transforms first.** `alfresco-transform-core-aio` ships
+> ImageMagick, LibreOffice, PDFRenderer, and Tika. Only scaffold a custom engine when the
+> required source→target mimetype pair is not covered by those engines.
 
-## Built-in transforms (alfresco-transform-core-aio)
-
-The following conversions are available **without a custom engine**:
+## Built-in transforms (alfresco-transform-core-aio 5.4.0)
 
 | Engine | Common source formats | Common target formats |
 |--------|-----------------------|-----------------------|
-| ImageMagick | image/\* (jpeg, png, gif, tiff, bmp, raw formats…) | image/jpeg, image/png, image/gif, image/tiff, image/bmp |
-| LibreOffice | application/msword, application/vnd.openxmlformats-officedocument.\*, application/vnd.oasis.opendocument.\*, text/csv, application/vnd.ms-excel… | application/pdf, text/plain, image/png, text/html |
+| ImageMagick | image/\* (jpeg, png, gif, tiff, bmp, raw…) | image/jpeg, image/png, image/gif, image/tiff, image/bmp |
+| LibreOffice | application/msword, .openxmlformats-officedocument.\*, .oasis.opendocument.\*, text/csv, .ms-excel… | application/pdf, text/plain, image/png, text/html |
 | PDFRenderer | application/pdf | image/png |
-| Tika | application/pdf, application/msword, application/vnd.ms-\*, text/\*, audio/\*, video/\* | text/plain, text/html, application/json (metadata) |
-
-If the required source→target pair is covered above, **only generate the rendition
-definition**. No custom engine project is needed.
-
-If the pair is **not** in the list above, scaffold a custom engine alongside the
-rendition definition.
+| Tika | application/pdf, application/msword, .ms-\*, text/\*, audio/\*, video/\* | text/plain, text/html (metadata extraction) |
 
 ---
 
@@ -39,7 +32,7 @@ Read `REQUIREMENTS.md` to identify transform/rendition requirements:
 
 1. Resolve the Platform JAR project's `Root path` from Section 2 (Project Architecture).
    - If Section 2 contains no `Platform JAR` project, stop and explain that the rendition
-     definition part of `/transforms` only applies to the Platform JAR.
+     definition requires a Platform JAR.
 
 2. Read Section 7 (Behaviour Requirements) sub-section "Transform and rendition requirements".
    - If none are present, stop and ask the user to run `/requirements` first (or provide a
@@ -48,22 +41,24 @@ Read `REQUIREMENTS.md` to identify transform/rendition requirements:
 3. From Section 2, derive:
    - `{platform-project-root}` — `.` for Platform JAR only; `{name}-platform/` for Mixed
    - `{module-id}` — bare artifactId (e.g. `my-extension`); **never** the full `module.id` value
-   - `{java-package}` — the Java package declared in Section 2
    - `{prefix}` — the namespace prefix from Section 5
 
 4. Derive from transform requirements:
    - `{renditionName}` — camelCase rendition identifier (e.g. `pdfPreview`, `customThumb`)
-   - `{sourceMimetype}` — source MIME type (e.g. `application/pdf`)
-   - `{targetMimetype}` — target MIME type (e.g. `image/png`)
-   - `{transformOptions}` — map of option key/value pairs (resize dimensions, timeout, etc.)
-   - `{newMimetype}` — only if the source or target is a MIME type not known to ACS
-   - `{engineName}` — camelCase engine name, only if a custom engine is needed
+   - `{sourceMimetype}` — source MIME type
+   - `{targetMimetype}` — target MIME type
+   - `{transformOptions}` — map of option key/value pairs
+   - `{newMimetype}` — only if the source or target MIME type is unknown to ACS
+   - `{engineName}` — camelCase engine name (e.g. `markdown`), only if a custom engine is needed
+   - `{EngineName}` — PascalCase engine name (e.g. `Markdown`)
+   - `{engine-queue}` — ActiveMQ queue name: `{engineName}-engine-queue`
+   - `{engine-artifact}` — Maven artifactId of the engine project (e.g. `sc-markdown-engine`)
 
 ---
 
 ## Output Files
 
-### Always generated: Rendition Definition (Platform JAR)
+### Always generated — Rendition Definition (Platform JAR)
 
 #### 1a. Rendition Context XML
 `{platform-project-root}/src/main/resources/alfresco/module/{module-id}/context/rendition-context.xml`
@@ -76,24 +71,17 @@ Read `REQUIREMENTS.md` to identify transform/rendition requirements:
                            http://www.springframework.org/schema/beans/spring-beans.xsd">
 
     <!--
-        Custom rendition definition — ACS 26.1 Rendition Service 2.
-        Auto-registers with renditionDefinitionRegistry2 via constructor injection.
-        ACS routes the transform request to whichever engine supports
-        {sourceMimetype} → {targetMimetype}.
+        Custom rendition — ACS 26.1 Rendition Service 2.
+        Auto-registers with renditionDefinitionRegistry2 via constructor.
+        ACS routes the request to the engine that advertises {sourceMimetype} → {targetMimetype}.
     -->
     <bean id="{prefix}.rendition.{renditionName}"
           class="org.alfresco.repo.rendition2.RenditionDefinition2Impl">
-        <constructor-arg name="renditionName"   value="{renditionName}"/>
-        <constructor-arg name="targetMimetype"  value="{targetMimetype}"/>
+        <constructor-arg name="renditionName"  value="{renditionName}"/>
+        <constructor-arg name="targetMimetype" value="{targetMimetype}"/>
         <constructor-arg name="transformOptions">
             <map>
-                <!-- Resize options (for image targets) -->
-                <entry key="resizeWidth"         value="200"/>
-                <entry key="resizeHeight"        value="200"/>
-                <entry key="maintainAspectRatio" value="true"/>
-                <entry key="allowEnlargement"    value="false"/>
-                <entry key="thumbnail"           value="true"/>
-                <!-- Timeout — always specify; use the system property -->
+                <!-- Add options matching what the target engine accepts -->
                 <entry key="timeout"
                        value="${system.thumbnail.definition.default.timeoutMs}"/>
             </map>
@@ -110,13 +98,12 @@ Add the import to `module-context.xml`:
 ```
 
 Key rules for the rendition bean:
-- Use `class="org.alfresco.repo.rendition2.RenditionDefinition2Impl"` — this is the ACS 26.1
-  Rendition Service 2 implementation. Do **not** use the legacy `RenditionDefinition` class.
-- Always pass `registry` ref pointing at `renditionDefinitionRegistry2` — the constructor
+- Use `class="org.alfresco.repo.rendition2.RenditionDefinition2Impl"` — ACS 26.1 Rendition
+  Service 2. Never use the legacy `RenditionDefinition` class.
+- Always pass `registry` ref pointing at `renditionDefinitionRegistry2`. The constructor
   auto-registers the rendition; no explicit `register()` call is needed.
 - Always include a `timeout` entry referencing `${system.thumbnail.definition.default.timeoutMs}`.
-- `transformOptions` keys must match what the target transform engine accepts (see built-in
-  table above or the custom engine's `engine_config.json`).
+- `transformOptions` keys must match what the target engine declares in its `engine_config.json`.
 
 #### 1b. MIME Type Extension XML (only when source or target is a new MIME type)
 `{platform-project-root}/src/main/resources/alfresco/extension/mimetype/mimetypes-extension-map.xml`
@@ -134,14 +121,18 @@ Key rules for the rendition bean:
 ```
 
 This file uses **Alfresco config XML format** (not Spring beans). ACS auto-discovers it from
-`alfresco/extension/mimetype/` on the classpath. No Spring import or bean registration is needed.
+`alfresco/extension/mimetype/` on the classpath — no Spring import or bean needed.
 
 ---
 
 ### Generated only when a custom engine is required
 
+A custom engine is a **standalone Spring Boot project** that implements the Alfresco
+Transform Core SPI. The main class, HTTP endpoints, and ActiveMQ wiring are all provided
+by `alfresco-base-t-engine` — you only write the engine declaration and the conversion logic.
+
 #### 2a. Engine Project POM
-`{engine-name}/pom.xml`
+`{engine-artifact}/pom.xml`
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -158,13 +149,19 @@ This file uses **Alfresco config XML format** (not Spring beans). ACS auto-disco
     </parent>
 
     <groupId>{groupId}</groupId>
-    <artifactId>{engine-name}</artifactId>
+    <artifactId>{engine-artifact}</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- Provides TransformEngine SPI, HTTP endpoints, ActiveMQ wiring, and Application main class -->
+        <dependency>
+            <groupId>org.alfresco</groupId>
+            <artifactId>alfresco-base-t-engine</artifactId>
+            <version>5.4.0</version>
         </dependency>
     </dependencies>
 
@@ -173,31 +170,34 @@ This file uses **Alfresco config XML format** (not Spring beans). ACS auto-disco
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- Main class comes from alfresco-base-t-engine, not this project -->
+                    <mainClass>org.alfresco.transform.base.Application</mainClass>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals><goal>repackage</goal></goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
+
+    <repositories>
+        <repository>
+            <id>alfresco-public</id>
+            <url>https://artifacts.alfresco.com/nexus/content/groups/public</url>
+        </repository>
+    </repositories>
+
 </project>
 ```
 
-#### 2b. Spring Boot Application Class
-`{engine-name}/src/main/java/{package}/transform/Application.java`
+> **Do NOT generate an `Application.java`**. The main class `org.alfresco.transform.base.Application`
+> is provided by `alfresco-base-t-engine`. Generating a duplicate causes a startup conflict.
 
-```java
-package {package}.transform;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-@SpringBootApplication
-public class Application {
-    public static void main(String[] args) {
-        SpringApplication.run(Application.class, args);
-    }
-}
-```
-
-#### 2c. TransformEngine Bean
-`{engine-name}/src/main/java/{package}/transform/{EngineName}Engine.java`
+#### 2b. TransformEngine Bean
+`{engine-artifact}/src/main/java/{package}/transform/{EngineName}Engine.java`
 
 ```java
 package {package}.transform;
@@ -237,6 +237,7 @@ public class {EngineName}Engine implements TransformEngine {
 
     @Override
     public ProbeTransform getProbeTransform() {
+        // Use a representative sample file from src/main/resources/
         return new ProbeTransform(
             "sample.{src-ext}", "{sourceMimetype}", "{targetMimetype}",
             java.util.Map.of(),
@@ -247,8 +248,8 @@ public class {EngineName}Engine implements TransformEngine {
 }
 ```
 
-#### 2d. CustomTransformer Bean
-`{engine-name}/src/main/java/{package}/transform/{EngineName}Transformer.java`
+#### 2c. CustomTransformer Bean
+`{engine-artifact}/src/main/java/{package}/transform/{EngineName}Transformer.java`
 
 ```java
 package {package}.transform;
@@ -275,16 +276,16 @@ public class {EngineName}Transformer implements CustomTransformer {
                           OutputStream outputStream,
                           Map<String, String> transformOptions,
                           TransformManager transformManager) throws Exception {
-        // Implement the conversion logic here.
-        // Read from inputStream, write result to outputStream.
-        // transformOptions contains the parameters declared in engine_config.json.
-        throw new UnsupportedOperationException("Implement transform logic here");
+        // Read from inputStream, write converted content to outputStream.
+        // transformOptions contains the parameters declared in {engineName}_engine_config.json.
+        throw new UnsupportedOperationException(
+            "Implement {EngineName} conversion logic here");
     }
 }
 ```
 
-#### 2e. Engine Config JSON
-`{engine-name}/src/main/resources/{engineName}_engine_config.json`
+#### 2d. Engine Config JSON
+`{engine-artifact}/src/main/resources/{engineName}_engine_config.json`
 
 ```json
 {
@@ -308,16 +309,36 @@ public class {EngineName}Transformer implements CustomTransformer {
 }
 ```
 
+#### 2e. Application Properties
+`{engine-artifact}/src/main/resources/application.yml`
+
+```yaml
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+# ActiveMQ queue name — must match TRANSFORMER_QUEUE_{ENGINE_UPPER} in transform-router config
+queue:
+  engineRequestQueue: {engine-queue}
+
+transform:
+  core:
+    version: 5.4.0
+```
+
 #### 2f. Dockerfile
-`{engine-name}/Dockerfile`
+`{engine-artifact}/Dockerfile`
 
 ```dockerfile
+# syntax=docker/dockerfile:1.4
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /workspace
 COPY pom.xml .
-RUN mvn dependency:go-offline -q
+RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -q
 COPY src ./src
-RUN mvn clean package -DskipTests -q
+RUN --mount=type=cache,target=/root/.m2 mvn clean package -DskipTests -q
 
 FROM eclipse-temurin:17-jre-jammy
 ARG GROUP_NAME=alfresco
@@ -334,40 +355,59 @@ EXPOSE 8090
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
 ```
 
-#### 2g. Docker Compose service snippet (add to project compose.yaml)
+> If the conversion logic requires additional runtimes (Python, native libraries, etc.),
+> use a multi-stage build with the appropriate base image for stage 2, as shown in
+> `https://github.com/aborroy/alf-tengine-convert2md`.
+
+#### 2g. Compose additions (add to project compose.yaml)
+
+ACS 26.1 Community uses a **Transform Router** (`alfresco-transform-router`). The engine
+registers with the router — not directly with ACS.
 
 ```yaml
-  {engine-name}:
+  # Custom engine service
+  {engine-artifact}:
     build:
-      context: ./{engine-name}
+      context: ./{engine-artifact}
       dockerfile: Dockerfile
-    ports:
-      - "8090:8090"
     environment:
       JAVA_OPTS: "-Xms256m -Xmx512m"
+      ACTIVEMQ_URL: "nio://activemq:61616"
+      ACTIVEMQ_USER: ${ACTIVEMQ_USER}
+      ACTIVEMQ_PASSWORD: ${ACTIVEMQ_PASSWORD}
+      FILE_STORE_URL: "http://shared-file-store:8099/alfresco/api/-default-/private/sfs/versions/1/file"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
+    depends_on:
+      activemq:
+        condition: service_healthy
+      shared-file-store:
+        condition: service_healthy
+
+  # Transform Router — tell it about the new engine
+  transform-router:
+    environment:
+      {ENGINE_UPPER}_URL: "http://{engine-artifact}:8090"
+      TRANSFORMER_QUEUE_{ENGINE_UPPER}: "{engine-queue}"
 ```
 
-Also add `depends_on: {engine-name}: condition: service_healthy` to the `alfresco` service.
+Where `{ENGINE_UPPER}` is the engine name in UPPER_CASE (e.g. `MARKDOWN`).
 
 ---
 
 ## Conventions
 - `{module-id}` is the Platform JAR **artifactId** — the bare artifact ID. Never use the full
   `module.id` property value as the directory name.
-- `{platform-project-root}` is `.` for Platform JAR only; `{name}-platform/` for Mixed mode.
 - Rendition names: camelCase (e.g. `pdfPreview`, `customThumb200`).
-- Always include a `timeout` transform option referencing the system property.
-- MIME type config XML goes in `alfresco/extension/mimetype/` — never in a Spring context.
-- Custom engine parent POM: `org.alfresco:alfresco-transform-core:5.4.0`.
-- Custom engine transformer name must match `getTransformerName()`, `engine_config.json`
-  `transformerName`, and the rendition definition's implicit routing.
-- Engine exposes port `8090` (default Transform Service port).
-- Never hardcode transform routing to a specific engine in the Platform JAR — ACS discovers
-  available transforms from registered engines at startup.
-- Never generate a custom engine for mimetype pairs already covered by `alfresco-transform-core-aio`.
+- Engine name: camelCase for code/config (e.g. `markdown`), UPPER_CASE for env vars (e.g. `MARKDOWN`).
+- Queue name: `{engineName}-engine-queue` — must match `queue.engineRequestQueue` in `application.yml`
+  and `TRANSFORMER_QUEUE_{ENGINE_UPPER}` in the transform-router environment.
+- **Do not generate `Application.java`** — it comes from `alfresco-base-t-engine`.
+- Engine exposes port `8090`.
+- Never add `localTransform.{name}.url` to ACS JAVA_OPTS for ACS 26.1 — that is the ACS 25.x
+  Community pattern. ACS 26.1 uses the Transform Router.
+- Never build a custom engine for a mimetype pair already handled by `alfresco-transform-core-aio`.
