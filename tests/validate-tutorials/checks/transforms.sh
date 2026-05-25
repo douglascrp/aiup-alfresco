@@ -15,7 +15,7 @@ printf '\n=== transforms ===\n'
 assert_grep_any_file "alfresco-sdk-aggregator" "$GEN" "pom.xml" \
     "a pom.xml uses alfresco-sdk-aggregator parent"
 
-MODULE_PROPS=$(find "$GEN" -name "module.properties" | head -1)
+MODULE_PROPS=$(find "$GEN" -name "module.properties" -not -path "*/target/*" | head -1)
 if [[ -n "$MODULE_PROPS" ]]; then
     assert_grep "module.id"      "$MODULE_PROPS" "module.properties has module.id"
     assert_grep "module.version" "$MODULE_PROPS" "module.properties has module.version"
@@ -31,7 +31,7 @@ else
 fi
 
 # ---- Rendition context XML ----
-RENDITION_CTX=$(find "$GEN" -name "rendition-context.xml" | head -1) || true
+RENDITION_CTX=$(find "$GEN" -name "rendition-context.xml" -not -path "*/target/*" | head -1) || true
 assert_file_exists "${RENDITION_CTX:-/nonexistent}" "rendition-context.xml exists"
 if [[ -n "$RENDITION_CTX" ]]; then
     assert_xml_wellformed "$RENDITION_CTX" "rendition-context.xml is well-formed XML"

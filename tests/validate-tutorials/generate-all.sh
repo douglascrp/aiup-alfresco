@@ -4,7 +4,7 @@
 # Usage:
 #   generate-all.sh [scenario...]
 #
-# With no arguments, generates all 6 scenarios.
+# With no arguments, generates all 12 scenarios.
 # With arguments, generates only the named scenarios:
 #   generate-all.sh content-types workflows
 #

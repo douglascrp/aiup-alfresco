@@ -15,7 +15,7 @@ printf '\n=== maven-sdk-baseline ===\n'
 assert_grep_any_file "alfresco-sdk-aggregator" "$GEN" "pom.xml" "a pom.xml uses alfresco-sdk-aggregator parent"
 
 # module.properties present with required keys
-MODULE_PROPS=$(find "$GEN" -name "module.properties" | head -1)
+MODULE_PROPS=$(find "$GEN" -name "module.properties" -not -path "*/target/*" | head -1)
 if [[ -n "$MODULE_PROPS" ]]; then
     assert_grep "module.id" "$MODULE_PROPS" "module.properties has module.id"
     assert_grep "module.version" "$MODULE_PROPS" "module.properties has module.version"

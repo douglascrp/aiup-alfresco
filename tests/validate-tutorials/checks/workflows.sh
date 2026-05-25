@@ -14,7 +14,7 @@ printf '\n=== workflows ===\n'
 # ---- Common checks ----
 assert_grep_any_file "alfresco-sdk-aggregator" "$GEN" "pom.xml" "a pom.xml uses alfresco-sdk-aggregator parent"
 
-MODULE_PROPS=$(find "$GEN" -name "module.properties" | head -1)
+MODULE_PROPS=$(find "$GEN" -name "module.properties" -not -path "*/target/*" | head -1)
 if [[ -n "$MODULE_PROPS" ]]; then
     assert_grep "module.id" "$MODULE_PROPS" "module.properties has module.id"
     assert_grep "module.version" "$MODULE_PROPS" "module.properties has module.version"
@@ -26,7 +26,7 @@ MODULE_CTX=$(find "$GEN" -name "module-context.xml" -not -path "*/target/*" | he
 [[ -n "$MODULE_CTX" ]] && assert_grep "context" "$MODULE_CTX" "module-context.xml has a context import"
 
 # ---- Model XML (content model or workflow model) ----
-CONTENT_MODEL=$(find "$GEN" -name "content-model.xml" | head -1)
+CONTENT_MODEL=$(find "$GEN" -name "content-model.xml" -not -path "*/target/*" | head -1)
 WORKFLOW_MODEL=$(find "$GEN" -name "*workflow-model.xml" | head -1)
 SOME_MODEL="${CONTENT_MODEL:-$WORKFLOW_MODEL}"
 assert_file_exists "${SOME_MODEL:-/nonexistent}" "at least one model XML exists"
@@ -56,7 +56,7 @@ if [[ -n "$WORKFLOW_MODEL" ]]; then
 fi
 
 # ---- bootstrap-context.xml uses workflowDeployer ----
-BOOTSTRAP_CTX=$(find "$GEN" -name "bootstrap-context.xml" | head -1)
+BOOTSTRAP_CTX=$(find "$GEN" -name "bootstrap-context.xml" -not -path "*/target/*" | head -1)
 assert_file_exists "${BOOTSTRAP_CTX:-/nonexistent}" "bootstrap-context.xml exists"
 
 if [[ -n "$BOOTSTRAP_CTX" ]]; then

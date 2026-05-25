@@ -14,7 +14,7 @@ printf '\n=== bootstrap-loader ===\n'
 # ---- Common checks ----
 assert_grep_any_file "alfresco-sdk-aggregator" "$GEN" "pom.xml" "a pom.xml uses alfresco-sdk-aggregator parent"
 
-MODULE_PROPS=$(find "$GEN" -name "module.properties" | head -1)
+MODULE_PROPS=$(find "$GEN" -name "module.properties" -not -path "*/target/*" | head -1)
 if [[ -n "$MODULE_PROPS" ]]; then
     assert_grep "module.id" "$MODULE_PROPS" "module.properties has module.id"
     assert_grep "module.version" "$MODULE_PROPS" "module.properties has module.version"
@@ -43,7 +43,7 @@ if [[ -n "$LOADER_JAVA" ]]; then
 fi
 
 # ---- Bootstrap context XML ----
-BOOTSTRAP_CTX=$(find "$GEN" -name "bootstrap-context.xml" | head -1) || true
+BOOTSTRAP_CTX=$(find "$GEN" -name "bootstrap-context.xml" -not -path "*/target/*" | head -1) || true
 assert_file_exists "${BOOTSTRAP_CTX:-/nonexistent}" "bootstrap-context.xml exists"
 if [[ -n "$BOOTSTRAP_CTX" ]]; then
     assert_xml_wellformed "$BOOTSTRAP_CTX" "bootstrap-context.xml is well-formed XML"

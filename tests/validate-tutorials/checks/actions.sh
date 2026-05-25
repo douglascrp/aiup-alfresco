@@ -14,7 +14,7 @@ printf '\n=== actions ===\n'
 # ---- Common checks ----
 assert_grep_any_file "alfresco-sdk-aggregator" "$GEN" "pom.xml" "a pom.xml uses alfresco-sdk-aggregator parent"
 
-MODULE_PROPS=$(find "$GEN" -name "module.properties" | head -1)
+MODULE_PROPS=$(find "$GEN" -name "module.properties" -not -path "*/target/*" | head -1)
 if [[ -n "$MODULE_PROPS" ]]; then
     assert_grep "module.id" "$MODULE_PROPS" "module.properties has module.id"
     assert_grep "module.version" "$MODULE_PROPS" "module.properties has module.version"
@@ -26,7 +26,7 @@ MODULE_CTX=$(find "$GEN" -name "module-context.xml" -not -path "*/target/*" | he
 [[ -n "$MODULE_CTX" ]] && assert_grep "context" "$MODULE_CTX" "module-context.xml has a context import"
 
 # ---- Content model (pre-req) ----
-CONTENT_MODEL=$(find "$GEN" -name "content-model.xml" | head -1)
+CONTENT_MODEL=$(find "$GEN" -name "content-model.xml" -not -path "*/target/*" | head -1)
 assert_file_exists "${CONTENT_MODEL:-/nonexistent}" "content-model.xml exists (actions pre-req)"
 [[ -n "$CONTENT_MODEL" ]] && assert_xml_wellformed "$CONTENT_MODEL" "content-model.xml is well-formed"
 [[ -n "$CONTENT_MODEL" ]] && assert_not_grep 'enforced="true"' "$CONTENT_MODEL" "content-model.xml has no enforced=true"
@@ -42,7 +42,7 @@ assert_file_exists "${ACTION_JAVA:-/nonexistent}" "*ActionExecuter.java exists"
 [[ -n "$ACTION_JAVA" ]] && assert_grep "executeImpl" "$ACTION_JAVA" "action class implements executeImpl()"
 
 # ---- service-context.xml with action-executer parent bean ----
-SERVICE_CTX=$(find "$GEN" -name "service-context.xml" | head -1)
+SERVICE_CTX=$(find "$GEN" -name "service-context.xml" -not -path "*/target/*" | head -1)
 assert_file_exists "${SERVICE_CTX:-/nonexistent}" "service-context.xml exists"
 [[ -n "$SERVICE_CTX" ]] && assert_grep 'action-executer' "$SERVICE_CTX" "service-context.xml registers action-executer bean"
 

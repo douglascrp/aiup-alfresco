@@ -14,7 +14,7 @@ printf '\n=== content-types ===\n'
 # ---- Common checks ----
 assert_grep_any_file "alfresco-sdk-aggregator" "$GEN" "pom.xml" "a pom.xml uses alfresco-sdk-aggregator parent"
 
-MODULE_PROPS=$(find "$GEN" -name "module.properties" | head -1)
+MODULE_PROPS=$(find "$GEN" -name "module.properties" -not -path "*/target/*" | head -1)
 if [[ -n "$MODULE_PROPS" ]]; then
     assert_grep "module.id" "$MODULE_PROPS" "module.properties has module.id"
     assert_grep "module.version" "$MODULE_PROPS" "module.properties has module.version"
@@ -30,7 +30,7 @@ else
 fi
 
 # ---- Content model XML ----
-CONTENT_MODEL=$(find "$GEN" -name "content-model.xml" | head -1)
+CONTENT_MODEL=$(find "$GEN" -name "content-model.xml" -not -path "*/target/*" | head -1)
 assert_file_exists "${CONTENT_MODEL:-/nonexistent}" "content-model.xml exists"
 
 if [[ -n "$CONTENT_MODEL" ]]; then
@@ -45,7 +45,7 @@ assert_file_exists "${MODEL_JAVA:-/nonexistent}" "*Model.java constants interfac
 [[ -n "$MODEL_JAVA" ]] && assert_grep "QName.createQName(" "$MODEL_JAVA" "*Model.java uses two-arg QName.createQName()"
 
 # ---- Bootstrap context registers dictionaryModelBootstrap ----
-BOOTSTRAP_CTX=$(find "$GEN" -name "bootstrap-context.xml" | head -1)
+BOOTSTRAP_CTX=$(find "$GEN" -name "bootstrap-context.xml" -not -path "*/target/*" | head -1)
 assert_file_exists "${BOOTSTRAP_CTX:-/nonexistent}" "bootstrap-context.xml exists"
 [[ -n "$BOOTSTRAP_CTX" ]] && assert_grep "dictionaryModelBootstrap" "$BOOTSTRAP_CTX" "bootstrap-context.xml uses dictionaryModelBootstrap bean"
 

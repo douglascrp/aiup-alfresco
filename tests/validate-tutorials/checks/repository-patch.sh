@@ -14,7 +14,7 @@ printf '\n=== repository-patch ===\n'
 # ---- Common checks ----
 assert_grep_any_file "alfresco-sdk-aggregator" "$GEN" "pom.xml" "a pom.xml uses alfresco-sdk-aggregator parent"
 
-MODULE_PROPS=$(find "$GEN" -name "module.properties" | head -1)
+MODULE_PROPS=$(find "$GEN" -name "module.properties" -not -path "*/target/*" | head -1)
 if [[ -n "$MODULE_PROPS" ]]; then
     assert_grep "module.id" "$MODULE_PROPS" "module.properties has module.id"
     assert_grep "module.version" "$MODULE_PROPS" "module.properties has module.version"
@@ -50,7 +50,7 @@ if [[ -n "$PATCH_JAVA" ]]; then
 fi
 
 # ---- patch-context.xml ----
-PATCH_CTX=$(find "$GEN" -name "patch-context.xml" | head -1) || true
+PATCH_CTX=$(find "$GEN" -name "patch-context.xml" -not -path "*/target/*" | head -1) || true
 assert_file_exists "${PATCH_CTX:-/nonexistent}" "patch-context.xml exists"
 if [[ -n "$PATCH_CTX" ]]; then
     assert_xml_wellformed "$PATCH_CTX" "patch-context.xml is well-formed XML"

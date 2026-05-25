@@ -10,7 +10,7 @@ using `claude -p` (non-interactive mode) and then validates them.
 ```bash
 cd aiup-alfresco/tests/validate-tutorials
 
-# Generate all 6 scenarios, then check them:
+# Generate all 12 scenarios, then check them:
 ./generate-all.sh && ./run-all.sh
 ```
 
@@ -23,7 +23,7 @@ No interactive input needed. `generate-all.sh`:
    which writes files directly into the generated directory.
 4. Repeats for each command in sequence (scaffold → content-model → domain command).
 
-`run-all.sh` then checks all 6 generated directories and prints a summary.
+`run-all.sh` then checks all 12 generated directories and prints a summary.
 
 Expected final output:
 
@@ -36,8 +36,14 @@ actions                        PASS
 behaviours                     PASS
 web-scripts                    PASS
 workflows                      PASS
+scheduled-jobs                 PASS
+bootstrap-loader               PASS
+rule-conditions                PASS
+repository-patch               PASS
+transforms                     PASS
+aca-extension                  PASS
 ----------------------------------------------
-TOTAL                          PASS:6  FAIL:0  SKIP:0
+TOTAL                          PASS:12  FAIL:0  SKIP:0
 ```
 
 ---
@@ -69,6 +75,12 @@ TOTAL                          PASS:6  FAIL:0  SKIP:0
 | behaviours | `/scaffold` `/content-model` `/behaviours` | + `*Behaviour.java` (Policy, PolicyComponent, JavaBehaviour, no LANGUAGE_LUCENE), `service-context.xml` |
 | web-scripts | `/scaffold` `/content-model` `/web-scripts` | + `*.desc.xml` (auth, format, transaction, cache, /api/ URL), `*.json.ftl`, `webscript-context.xml` |
 | workflows | `/scaffold` `/content-model` `/workflow` | + `*.bpmn` (activiti ns, isExecutable, no flowable/redeploy), `*-workflow-model.xml` (bpm import), `bootstrap-context.xml` (workflowDeployer), `*Workflow.properties` |
+| scheduled-jobs | `/scaffold` `/content-model` `/scheduled-jobs` | + `*Job.java` (AbstractScheduledLockedJob), `*JobExecuter.java` (RetryingTransactionHelper), `scheduler-context.xml` (CronTriggerBean, cron, enabled, startDelay), unit test |
+| bootstrap-loader | `/scaffold` `/bootstrap-loader` | + `*BootstrapLoader.java` (AbstractModuleComponent), `bootstrap-context.xml` (module.baseComponent, moduleId, sinceVersion), unit test |
+| rule-conditions | `/scaffold` `/content-model` `/rule-conditions` | + `*Condition.java` (ActionConditionEvaluatorAbstractBase, evaluateImpl, NAME), `service-context.xml` (action-condition-evaluator), unit test |
+| repository-patch | `/scaffold` `/content-model` `/repository-patch` | + `*Patch.java` (AbstractPatch, applyInternal, ResultSet.close), `patch-context.xml` (basePatch, schema version), unit test |
+| transforms | `/scaffold` `/transforms` | + `rendition-context.xml` (RenditionDefinition2Impl), `mimetypes-extension-map.xml`; optional engine: `*Engine.java`, `*Transformer.java`, `*engine_config.json`, `Dockerfile` |
+| aca-extension | `/aca-extension` | + `*.plugin.json` (routes/navbar/toolbar/contextMenu/sidebar), `*.module.ts` (provideExtension, APP_INITIALIZER, setComponents), `*.service.ts` (AppConfigService), standalone components, `public-api.ts` |
 
 ---
 
