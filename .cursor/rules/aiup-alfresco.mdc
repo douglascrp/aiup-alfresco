@@ -1,0 +1,37 @@
+---
+description: AIUP Alfresco extension conventions — read AGENTS.md and command specs before generating or reviewing code
+alwaysApply: true
+---
+
+# AIUP — Alfresco extension development (Cursor)
+
+You are working in a repository that follows **AIUP** (AI Unified Process) for Alfresco Content Services extensions.
+
+## Mandatory first step
+
+Before generating, editing, or reviewing Alfresco-related code (Java under Alfresco modules, `alfresco/module/**`, content models, web scripts, Share config, Spring Boot event listeners, `compose.yaml`, etc.), **read and follow** the project rules in **`AGENTS.md`** at the repository root. Treat `AGENTS.md` as the single source of truth for stack versions, layout, naming, forbidden patterns, and testing conventions.
+
+## How AIUP commands map here
+
+There are no Claude-style slash commands in Cursor. AIUP “commands” are Markdown specifications:
+
+- **`commands/<name>.md`** — full procedure for `/requirements`, `/scaffold`, `/content-model`, and so on.  
+  When the user asks to run an AIUP step, open the matching file (or use `@commands/<name>.md`) and execute the Markdown body; ignore Claude-only YAML front matter except as hints.
+
+- **`.cursor/skills/<skill-name>/SKILL.md`** — Cursor-native copies of validator skills and agent guidance (regenerate with `./scripts/build-cursor-skills.sh`). Also available under `skills/` for Claude Code.
+
+- **`agents/*.md`** — source for agent skills; prefer the matching `.cursor/skills/` entry or `@agents/...` when useful.
+
+When the user asks to run an AIUP step without naming a file, use the **`aiup-alfresco`** skill orchestrator or open `commands/<name>.md` directly.
+
+## Output expectations
+
+When an AIUP command requires file output, **create or update real files** in the repo; do not stop at a high-level summary unless the user only asked for a plan.
+
+## Portable prompts
+
+To get a single copy-paste prompt for Cursor Agent, from the repo root run:
+
+`./scripts/aiup-command.sh render --agent cursor <command> [args...]`
+
+See **`CURSOR.md`** for installation, workflows, hooks, and troubleshooting.

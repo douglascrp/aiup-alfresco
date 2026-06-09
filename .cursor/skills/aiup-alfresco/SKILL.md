@@ -1,0 +1,49 @@
+---
+name: aiup-alfresco
+description: Runs AIUP Alfresco extension workflow steps (requirements, scaffold, content-model, web-scripts, docker-compose, test, and more). Use when the user asks to execute an AIUP command or develop Alfresco extensions following AGENTS.md.
+---
+
+# AIUP Alfresco — command orchestrator
+
+Cursor has no `/scaffold` slash commands. AIUP steps live in `commands/<name>.md`.
+
+## Before any step
+
+1. Read `AGENTS.md` at the repository root.
+2. Open `commands/<name>.md` for the requested step.
+3. Apply referenced skills under `.cursor/skills/` or `skills/` when the command mentions them.
+4. Create or update real files; do not stop at a summary unless the user asked for a plan only.
+
+## Available commands
+
+| Command | Description |
+|---------|-------------|
+| `actions` | Scaffold Alfresco ActionExecuter classes with Spring bean registration. In-Process SDK (Maven) only. |
+| `aikau` | Generate Share Aikau page and dashlet artefacts for legacy Share UI customizations. |
+| `behaviours` | Scaffold Alfresco behaviour/policy classes with Spring bean wiring. In-Process SDK (Maven) only. |
+| `content-model` | Generate Alfresco content model XML and Spring context file from requirements. |
+| `docker-compose` | Generate a Docker Compose file with full ACS stack. |
+| `events` | Generate an Out-of-Process Spring Boot event listener for Alfresco Java Event API. |
+| `requirements` | Gather and structure requirements for an Alfresco extension as user stories with acceptance criteria. |
+| `scaffold` | Scaffolds one deployable project or a mixed multi-project repository from REQUIREMENTS.md: pom.xml(s), module.properties, module-context.xml, Share-tier base structure, and Spring Boot Application class. Supports Platform JAR (in-process), Share JAR (web-tier), Event Handler (out-of-process), and mixed architectures. Run this first, before /content-model. |
+| `share-config` | Generate Share form configuration and related web-extension files for legacy Share UI customizations. |
+| `surf` | Generate Share Surf extension artefacts for legacy Share pages, components, templates, and extension metadata. |
+| `test` | Generate integration tests for Alfresco extensions using Testcontainers (self-contained, no pre-running ACS required). |
+| `web-scripts` | Generate Alfresco Web Script descriptors, controllers, and FreeMarker templates. In-Process SDK (Maven) only. |
+| `workflow` | Generate Activiti BPMN 2.0 process definition, workflow task content model, Spring bootstrap registration, i18n message bundle, and optional Java task listener. In-Process SDK (Maven) only. |
+
+## Typical order
+
+1. `requirements` — architecture decision + REQUIREMENTS.md
+2. `scaffold` — project skeleton (requires REQUIREMENTS.md)
+3. Feature commands (`content-model`, `behaviours`, `web-scripts`, `events`, …) as needed
+4. `docker-compose` — before integration tests
+5. `test` — last
+
+## Rendered prompt (optional)
+
+```bash
+./scripts/aiup-command.sh render --agent cursor <command> [args...]
+```
+
+See `CURSOR.md` for hooks, @ references, and troubleshooting.

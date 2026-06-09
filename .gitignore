@@ -34,3 +34,4 @@ replay_pid*
 *.iml
 
 .agents/
+skills-lock.json

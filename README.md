@@ -1,6 +1,6 @@
 # aiup-alfresco
 
-A [Claude Code](https://claude.com/claude-code) plugin and portable prompt pack for Alfresco extension development. It packages the workflow as command specs, skills, and agents so the same repository guidance can be reused from Claude, Codex, OpenClaw, or another coding agent.
+A [Claude Code](https://claude.com/claude-code) plugin and portable prompt pack for Alfresco extension development. It packages the workflow as command specs, skills, and agents so the same repository guidance can be reused from Claude, Cursor, Codex, OpenClaw, or another coding agent.
 
 AIUP (AI Unified Process) is a spec-driven approach to AI-assisted development. This project applies AIUP principles to Alfresco extensions.
 
@@ -27,6 +27,15 @@ claude --plugin-dir /path/to/aiup-alfresco
 
 If you are using Codex, OpenClaw, or another agent, installation is optional; you can use the portable renderer below directly from the repository checkout.
 
+### Cursor
+
+1. Clone this repository and open it as the workspace root in Cursor.
+2. Project rules (`.cursor/rules/aiup-alfresco.mdc`) and skills (`.cursor/skills/`) load automatically.
+3. Optional: enable **Hooks** in Cursor settings; ensure `.cursor/hooks/*.sh` are executable.
+4. After editing `skills/` or `agents/`, regenerate Cursor skills: `./scripts/build-cursor-skills.sh`
+
+Full guide: **[CURSOR.md](./CURSOR.md)** (`@` references, `./scripts/aiup-command.sh render --agent cursor …`, hooks, reusing in other Alfresco repos).
+
 ## Portable Use Outside Claude
 
 The slash-command UX is Claude-specific, but the command logic is portable because it lives in `commands/*.md` and `AGENTS.md`.
@@ -50,13 +59,19 @@ Render an OpenClaw-compatible prompt for `/scaffold`:
 ./scripts/aiup-command.sh render --agent openclaw scaffold
 ```
 
+Render a Cursor-friendly prompt (mentions `@` context and the same execution contract):
+
+```bash
+./scripts/aiup-command.sh render --agent cursor scaffold
+```
+
 The renderer emits a plain prompt that tells the target agent to:
 
 - read `AGENTS.md`
 - execute the requested `commands/<name>.md`
 - handle any referenced `skills/` or `agents/` files manually
 
-See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow.
+See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow and [CURSOR.md](./CURSOR.md) for Cursor-specific rules, hooks, and workflows.
 
 ## Quick Start
 
