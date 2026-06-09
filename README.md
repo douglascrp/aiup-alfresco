@@ -29,12 +29,14 @@ If you are using Codex, OpenClaw, or another agent, installation is optional; yo
 
 ### Cursor
 
-1. Clone this repository and open it as the workspace root in Cursor.
+1. Clone this repository and open it as the workspace root in Cursor (2.4+).
 2. Project rules (`.cursor/rules/aiup-alfresco.mdc`) and skills (`.cursor/skills/`) load automatically.
-3. Optional: enable **Hooks** in Cursor settings; ensure `.cursor/hooks/*.sh` are executable.
-4. After editing `skills/` or `agents/`, regenerate Cursor skills: `./scripts/build-cursor-skills.sh`
+3. In Agent chat, type **`/requirements`**, **`/scaffold`**, etc. to run AIUP workflow steps.
+4. Optional: enable **Hooks** in Cursor settings; ensure `.cursor/hooks/*.sh` are executable.
+5. After editing `skills/`, `agents/`, or `commands/`, regenerate Cursor skills: `./scripts/build-cursor-skills.sh`
+6. In another Alfresco project: submodule at `tools/aiup-alfresco/` and run `./tools/aiup-alfresco/scripts/install-cursor-pack.sh`
 
-Full guide: **[CURSOR.md](./CURSOR.md)** (`@` references, `./scripts/aiup-command.sh render --agent cursor …`, hooks, reusing in other Alfresco repos).
+Full guide: **[CURSOR.md](./CURSOR.md)** (slash commands, `@` references, hooks, consumer install).
 
 ## Portable Use Outside Claude
 

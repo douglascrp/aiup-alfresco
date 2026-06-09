@@ -1,13 +1,68 @@
 #!/usr/bin/env bash
 # Regenerate .cursor/skills/ from skills/, agents/, and commands/.
 # Source files under skills/ keep Claude Code frontmatter; Cursor copies use name + description only.
+#
+# Usage:
+#   ./scripts/build-cursor-skills.sh
+#   ./scripts/build-cursor-skills.sh --aiup-prefix tools/aiup-alfresco/ --output /path/to/.cursor/skills
 
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-CURSOR_SKILLS="$ROOT_DIR/.cursor/skills"
 COMMANDS_DIR="$ROOT_DIR/commands"
+
+AIUP_PREFIX=""
+CURSOR_SKILLS="$ROOT_DIR/.cursor/skills"
+MERGE=false
+
+usage() {
+    cat <<EOF
+Usage:
+  $(basename "$0") [--aiup-prefix <path>] [--output <dir>] [--merge]
+
+Options:
+  --aiup-prefix <path>  Prefix for AGENTS.md and commands/ paths in command skills
+                        (default: empty — paths relative to aiup-alfresco repo root)
+  --output <dir>        Destination skills directory (default: .cursor/skills in repo root)
+  --merge               Update only AIUP-managed skills; preserve other skill directories
+
+Examples:
+  $(basename "$0")
+  $(basename "$0") --aiup-prefix tools/aiup-alfresco/ --output /path/to/l2-repo/.cursor/skills --merge
+EOF
+}
+
+fail() {
+    printf 'Error: %s\n' "$1" >&2
+    exit 1
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --aiup-prefix)
+            [ $# -ge 2 ] || fail "--aiup-prefix requires a value"
+            AIUP_PREFIX="$2"
+            shift 2
+            ;;
+        --output)
+            [ $# -ge 2 ] || fail "--output requires a value"
+            CURSOR_SKILLS="$2"
+            shift 2
+            ;;
+        --merge)
+            MERGE=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            fail "unknown argument: $1 (try --help)"
+            ;;
+    esac
+done
 
 strip_claude_frontmatter() {
     awk '
@@ -49,8 +104,57 @@ write_cursor_skill() {
     } > "$dest/SKILL.md"
 }
 
-rm -rf "$CURSOR_SKILLS"
-mkdir -p "$CURSOR_SKILLS"
+write_command_skill() {
+    local cmd="$1"
+    local description="$2"
+    local dest="$CURSOR_SKILLS/$cmd"
+
+    mkdir -p "$dest"
+    {
+        echo "---"
+        echo "name: $cmd"
+        echo "description: $description"
+        echo "disable-model-invocation: true"
+        echo "---"
+        echo ""
+        echo "# AIUP command: $cmd"
+        echo ""
+        echo "1. Read \`${AIUP_PREFIX}AGENTS.md\`."
+        echo "2. Execute the full procedure in \`${AIUP_PREFIX}commands/${cmd}.md\`."
+        echo "3. Apply referenced validator skills under \`.cursor/skills/\` when the command mentions them."
+        echo "4. Create or update real files unless the user asked for a plan only."
+        echo ""
+        echo "Treat any user text after \`/${cmd}\` as \`\$ARGUMENTS\` from the command spec."
+    } > "$dest/SKILL.md"
+}
+
+collect_managed_skill_names() {
+    for skill_dir in "$ROOT_DIR/skills"/*/; do
+        [ -f "${skill_dir}SKILL.md" ] || continue
+        basename "$skill_dir"
+    done
+    for agent_file in "$ROOT_DIR/agents"/*.md; do
+        [ -f "$agent_file" ] || continue
+        name=$(extract_yaml_field "$agent_file" "name")
+        [ -n "$name" ] || name=$(basename "$agent_file" .md)
+        printf '%s\n' "$name"
+    done
+    while IFS= read -r file; do
+        basename "$file" .md
+    done < <(find "$COMMANDS_DIR" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort)
+    printf '%s\n' "aiup-alfresco"
+}
+
+if [ "$MERGE" = true ]; then
+    mkdir -p "$CURSOR_SKILLS"
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        rm -rf "$CURSOR_SKILLS/$name"
+    done < <(collect_managed_skill_names)
+else
+    rm -rf "$CURSOR_SKILLS"
+    mkdir -p "$CURSOR_SKILLS"
+fi
 
 # --- Validator / helper skills (from skills/) ---
 for skill_dir in "$ROOT_DIR/skills"/*/; do
@@ -71,6 +175,14 @@ for agent_file in "$ROOT_DIR/agents"/*.md; do
     write_cursor_skill "$name" "$description" "$agent_file"
 done
 
+# --- Command slash skills (from commands/) ---
+while IFS= read -r file; do
+    cmd=$(basename "$file" .md)
+    desc=$(extract_yaml_field "$file" "description")
+    [ -n "$desc" ] || desc="AIUP Alfresco command: $cmd"
+    write_command_skill "$cmd" "$desc"
+done < <(find "$COMMANDS_DIR" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort)
+
 # --- Orchestrator skill (commands index) ---
 ORCH="$CURSOR_SKILLS/aiup-alfresco/SKILL.md"
 mkdir -p "$(dirname "$ORCH")"
@@ -83,45 +195,50 @@ mkdir -p "$(dirname "$ORCH")"
     echo ""
     echo "# AIUP Alfresco — command orchestrator"
     echo ""
-    echo "Cursor has no \`/scaffold\` slash commands. AIUP steps live in \`commands/<name>.md\`."
+    echo "Invoke any AIUP step with \`/<command>\` in Agent chat (Cursor 2.4+), or open \`${AIUP_PREFIX}commands/<name>.md\` directly."
     echo ""
     echo "## Before any step"
     echo ""
-    echo "1. Read \`AGENTS.md\` at the repository root."
-    echo "2. Open \`commands/<name>.md\` for the requested step."
-    echo "3. Apply referenced skills under \`.cursor/skills/\` or \`skills/\` when the command mentions them."
+    echo "1. Read \`${AIUP_PREFIX}AGENTS.md\`."
+    echo "2. Open \`${AIUP_PREFIX}commands/<name>.md\` for the requested step (or type \`/<name>\`)."
+    echo "3. Apply referenced skills under \`.cursor/skills/\` when the command mentions them."
     echo "4. Create or update real files; do not stop at a summary unless the user asked for a plan only."
     echo ""
     echo "## Available commands"
     echo ""
-    echo "| Command | Description |"
-    echo "|---------|-------------|"
+    echo "| Slash command | Description |"
+    echo "|---------------|-------------|"
 } > "$ORCH"
 
 while IFS= read -r file; do
     cmd=$(basename "$file" .md)
     desc=$(extract_yaml_field "$file" "description")
-    printf '| `%s` | %s |\n' "$cmd" "$desc" >> "$ORCH"
+    printf '| `/%s` | %s |\n' "$cmd" "$desc" >> "$ORCH"
 done < <(find "$COMMANDS_DIR" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort)
+
+render_script="./scripts/aiup-command.sh"
+if [ -n "$AIUP_PREFIX" ]; then
+    render_script="${AIUP_PREFIX}scripts/aiup-command.sh"
+fi
 
 {
     echo ""
     echo "## Typical order"
     echo ""
-    echo "1. \`requirements\` — architecture decision + REQUIREMENTS.md"
-    echo "2. \`scaffold\` — project skeleton (requires REQUIREMENTS.md)"
+    echo "1. \`/requirements\` — architecture decision + REQUIREMENTS.md"
+    echo "2. \`/scaffold\` — project skeleton (requires REQUIREMENTS.md)"
     echo "3. Feature commands as needed, for example:"
-    echo "   - Platform JAR: \`content-model\`, \`behaviours\`, \`web-scripts\`, \`actions\`, \`workflow\`, \`scheduled-jobs\`, \`bootstrap-loader\`, \`rule-conditions\`, \`repository-patch\`, \`transforms\`"
-    echo "   - Out-of-process: \`events\`"
-    echo "   - Share JAR: \`share-config\`, \`surf\`, \`aikau\`"
-    echo "   - ACA/ADW: \`aca-extension\`"
-    echo "4. \`docker-compose\` — before integration tests"
-    echo "5. \`test\` — last"
+    echo "   - Platform JAR: \`/content-model\`, \`/behaviours\`, \`/web-scripts\`, \`/actions\`, \`/workflow\`, \`/scheduled-jobs\`, \`/bootstrap-loader\`, \`/rule-conditions\`, \`/repository-patch\`, \`/transforms\`"
+    echo "   - Out-of-process: \`/events\`"
+    echo "   - Share JAR: \`/share-config\`, \`/surf\`, \`/aikau\`"
+    echo "   - ACA/ADW: \`/aca-extension\`"
+    echo "4. \`/docker-compose\` — before integration tests"
+    echo "5. \`/test\` — last"
     echo ""
     echo "## Rendered prompt (optional)"
     echo ""
     echo "\`\`\`bash"
-    echo "./scripts/aiup-command.sh render --agent cursor <command> [args...]"
+    echo "${render_script} render --agent cursor <command> [args...]"
     echo "\`\`\`"
     echo ""
     echo "See \`CURSOR.md\` for hooks, @ references, and troubleshooting."
@@ -129,11 +246,22 @@ done < <(find "$COMMANDS_DIR" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort)
 
 skill_dirs=$(find "$CURSOR_SKILLS" -mindepth 1 -maxdepth 1 -type d | wc -l)
 cmd_count=$(find "$COMMANDS_DIR" -maxdepth 1 -type f -name '*.md' | wc -l)
-orch_count=$(grep -c '^| `' "$ORCH" || true)
+orch_count=$(grep -c '^| `/' "$ORCH" || true)
+command_skill_count=$(find "$CURSOR_SKILLS" -mindepth 1 -maxdepth 1 -type d \
+    -exec test -f '{}/SKILL.md' \; -print | while read -r d; do
+        name=$(basename "$d")
+        if [ -f "$COMMANDS_DIR/${name}.md" ]; then echo "$name"; fi
+    done | wc -l)
 
 if [ "$cmd_count" -ne "$orch_count" ]; then
     printf 'Error: orchestrator lists %s commands but commands/ has %s\n' "$orch_count" "$cmd_count" >&2
     exit 1
 fi
 
-printf 'Generated %s Cursor skills (%s commands in orchestrator) in %s\n' "$skill_dirs" "$orch_count" "$CURSOR_SKILLS"
+if [ "$cmd_count" -ne "$command_skill_count" ]; then
+    printf 'Error: generated %s command skills but commands/ has %s\n' "$command_skill_count" "$cmd_count" >&2
+    exit 1
+fi
+
+printf 'Generated %s Cursor skills (%s command slash skills, prefix="%s") in %s\n' \
+    "$skill_dirs" "$command_skill_count" "$AIUP_PREFIX" "$CURSOR_SKILLS"

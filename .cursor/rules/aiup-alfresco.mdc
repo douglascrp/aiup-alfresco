@@ -11,27 +11,35 @@ You are working in a repository that follows **AIUP** (AI Unified Process) for A
 
 Before generating, editing, or reviewing Alfresco-related code (Java under Alfresco modules, `alfresco/module/**`, content models, web scripts, BPMN workflows, Quartz scheduled jobs, repository patches, transforms, Share/ACA UI extensions, Spring Boot event listeners, `compose.yaml`, etc.), **read and follow** the project rules in **`AGENTS.md`** at the repository root. Treat `AGENTS.md` as the single source of truth for stack versions, layout, naming, forbidden patterns, and testing conventions.
 
+In consumer projects with a submodule at `tools/aiup-alfresco/`, read **`tools/aiup-alfresco/AGENTS.md`** instead (subject to any local version override rule).
+
 ## How AIUP commands map here
 
-There are no Claude-style slash commands in Cursor. AIUP “commands” are Markdown specifications:
+Cursor 2.4+ exposes AIUP steps as **slash commands** via Agent Skills in `.cursor/skills/`:
 
-- **`commands/<name>.md`** — full procedure for `/requirements`, `/scaffold`, `/content-model`, and so on.  
-  When the user asks to run an AIUP step, open the matching file (or use `@commands/<name>.md`) and execute the Markdown body; ignore Claude-only YAML front matter except as hints.
+- Type **`/requirements`**, **`/scaffold`**, **`/content-model`**, etc. in Agent chat
+- Each command skill has `disable-model-invocation: true` — it runs only when explicitly invoked
+- Command skills point at `commands/<name>.md` (or `tools/aiup-alfresco/commands/<name>.md` in consumer repos)
 
-- **`.cursor/skills/<skill-name>/SKILL.md`** — Cursor-native copies of validator skills and agent guidance (regenerate with `./scripts/build-cursor-skills.sh`). Also available under `skills/` for Claude Code.
+Fallbacks when slash commands are not used:
 
-- **`agents/*.md`** — source for agent skills; prefer the matching `.cursor/skills/` entry or `@agents/...` when useful.
+- **`commands/<name>.md`** — full procedure; open via `@commands/<name>.md`
+- **`.cursor/skills/<skill-name>/SKILL.md`** — validators (auto-triggered) and agent guidance
+- **`aiup-alfresco`** orchestrator skill — lists all commands when the step name is unclear
+- **`./scripts/aiup-command.sh render --agent cursor <command>`** — portable rendered prompt
 
-When the user asks to run an AIUP step without naming a file, use the **`aiup-alfresco`** skill orchestrator or open `commands/<name>.md` directly.
+When the user asks to run an AIUP step without naming a file, match the request to the closest `/command` or use the **`aiup-alfresco`** orchestrator.
 
 ## Output expectations
 
 When an AIUP command requires file output, **create or update real files** in the repo; do not stop at a high-level summary unless the user only asked for a plan.
 
-## Portable prompts
+## Consumer project install
 
-To get a single copy-paste prompt for Cursor Agent, from the repo root run:
+From an Alfresco project root with submodule at `tools/aiup-alfresco/`:
 
-`./scripts/aiup-command.sh render --agent cursor <command> [args...]`
+`./tools/aiup-alfresco/scripts/install-cursor-pack.sh`
 
-See **`CURSOR.md`** for installation, workflows, hooks, and troubleshooting.
+Re-run after `git submodule update` to refresh slash-command skills.
+
+See **`CURSOR.md`** and **`CURSOR-INTEGRATION-GUIDE.md`** for installation, hooks, and troubleshooting.

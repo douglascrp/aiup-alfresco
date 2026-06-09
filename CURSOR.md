@@ -1,6 +1,6 @@
 # Using aiup-alfresco with Cursor
 
-This repository is a [Claude Code](https://claude.com/claude-code) plugin **and** a portable prompt pack. In **Cursor**, there is no `/scaffold` slash-command UI; you use **project rules**, **`@` file references**, optional **hooks**, and the same **`scripts/aiup-command.sh` renderer** as for other agents.
+This repository is a [Claude Code](https://claude.com/claude-code) plugin **and** a portable prompt pack. In **Cursor 2.4+**, AIUP steps are available as **slash commands** (`/requirements`, `/scaffold`, …) via Agent Skills in `.cursor/skills/`. You can also use **project rules**, **`@` file references**, optional **hooks**, and the **`scripts/aiup-command.sh` renderer**.
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ This repository is a [Claude Code](https://claude.com/claude-code) plugin **and*
 | Artifact | Role |
 |----------|------|
 | [`.cursor/rules/aiup-alfresco.mdc`](./.cursor/rules/aiup-alfresco.mdc) | Tells the agent to follow [`AGENTS.md`](./AGENTS.md) and treat `commands/` and `.cursor/skills/` as the AIUP workflow. Enabled with `alwaysApply: true`. |
-| [`.cursor/skills/`](./.cursor/skills/) | **11 Cursor-native skills**: 7 validators, 3 agent guides, and **`aiup-alfresco`** (orchestrator listing all `commands/*.md`). Regenerate after upstream merges: `./scripts/build-cursor-skills.sh`. |
+| [`.cursor/skills/`](./.cursor/skills/) | **30 Cursor-native skills**: 19 command slash skills, 7 validators, 3 agent guides, and **`aiup-alfresco`** orchestrator. Regenerate: `./scripts/build-cursor-skills.sh`. |
 | [`AGENTS.md`](./AGENTS.md) | Full Alfresco / SDK conventions (versions, layout, forbidden patterns, tests). |
 | [`commands/*.md`](./commands/) | Portable specifications for each AIUP step (`requirements`, `scaffold`, `content-model`, …). |
 
@@ -32,9 +32,27 @@ Optional automation (team-shared if committed):
 1. Open this folder as the **workspace root** in Cursor.
 2. Confirm **Project Rules** are enabled (Settings → Rules).
 3. Optional: enable **Hooks** in Cursor settings; run `chmod +x .cursor/hooks/*.sh` if scripts are not executable.
-4. Regenerate skills after editing `skills/` or `agents/`: `./scripts/build-cursor-skills.sh`
+4. Regenerate skills after editing `skills/`, `agents/`, or `commands/`: `./scripts/build-cursor-skills.sh`
 
-## Daily workflow (replacing `/commands`)
+## Slash commands (primary workflow)
+
+In **Agent** chat, type `/` followed by the command name (Cursor 2.4+):
+
+```
+/requirements We need to manage technical documents with categories
+/scaffold
+/content-model
+```
+
+Each command skill (`disable-model-invocation: true`) instructs the agent to read `AGENTS.md` and execute the matching `commands/<name>.md` spec.
+
+List available commands:
+
+```bash
+./scripts/aiup-command.sh list
+```
+
+## Daily workflow (alternatives)
 
 ### A — `@` references (fast iteration)
 
@@ -109,15 +127,17 @@ If stdin field names change in a future Cursor release, update the `jq` paths in
 
 ## Reusing AIUP in another Alfresco repository
 
-1. Copy or submodule at least: `AGENTS.md`, `commands/`, `skills/`, `agents/`, `scripts/aiup-command.sh`, and `scripts/build-cursor-skills.sh`.
-2. Copy `.cursor/` (rules, skills, hooks) **or** run `./scripts/build-cursor-skills.sh` after copying sources, then merge `.cursor/rules/aiup-alfresco.mdc` into your rules.
-3. Adapt stack versions in `AGENTS.md` (or a local override rule) to match the target `pom.xml`.
-4. Run `./scripts/aiup-command.sh render --agent cursor <command>` from **that** repo root so paths in the prompt match the new workspace.
+1. Add aiup-alfresco as a submodule (recommended): `git submodule add https://github.com/aborroy/aiup-alfresco.git tools/aiup-alfresco`
+2. From the **consumer project root**, run: `./tools/aiup-alfresco/scripts/install-cursor-pack.sh`
+3. Create a local version override rule if your ACS/SDK versions differ from `AGENTS.md` (see [CURSOR-INTEGRATION-GUIDE.md](./CURSOR-INTEGRATION-GUIDE.md)).
+4. Open the consumer project as the Cursor workspace root and use `/requirements`, `/scaffold`, etc.
+5. Re-run `install-cursor-pack.sh` after `git submodule update` to refresh skills.
 
 ## Troubleshooting
 
 | Issue | What to check |
 |-------|----------------|
+| `/scaffold` not in autocomplete | Cursor 2.4+ required; skills must be in **workspace root** `.cursor/skills/` (run `install-cursor-pack.sh` for consumer repos); reload window. |
 | Agent ignores Alfresco conventions | Project **Rules** not disabled; `.cursor/rules/aiup-alfresco.mdc` present; model actually reads `AGENTS.md` (`@AGENTS.md` helps). |
 | `unsupported agent 'cursor'` | Update `scripts/aiup-command.sh` from this repo; use `--agent generic` as a fallback. |
 | Hooks never run | Paths in `hooks.json` relative to repo root; scripts executable; Hooks enabled in Cursor; restart Cursor after edits. |
