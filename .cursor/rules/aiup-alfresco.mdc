@@ -9,7 +9,7 @@ You are working in a repository that follows **AIUP** (AI Unified Process) for A
 
 ## Mandatory first step
 
-Before generating, editing, or reviewing Alfresco-related code (Java under Alfresco modules, `alfresco/module/**`, content models, web scripts, Share config, Spring Boot event listeners, `compose.yaml`, etc.), **read and follow** the project rules in **`AGENTS.md`** at the repository root. Treat `AGENTS.md` as the single source of truth for stack versions, layout, naming, forbidden patterns, and testing conventions.
+Before generating, editing, or reviewing Alfresco-related code (Java under Alfresco modules, `alfresco/module/**`, content models, web scripts, BPMN workflows, Quartz scheduled jobs, repository patches, transforms, Share/ACA UI extensions, Spring Boot event listeners, `compose.yaml`, etc.), **read and follow** the project rules in **`AGENTS.md`** at the repository root. Treat `AGENTS.md` as the single source of truth for stack versions, layout, naming, forbidden patterns, and testing conventions.
 
 ## How AIUP commands map here
 

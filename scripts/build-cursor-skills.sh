@@ -110,7 +110,11 @@ done < <(find "$COMMANDS_DIR" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort)
     echo ""
     echo "1. \`requirements\` — architecture decision + REQUIREMENTS.md"
     echo "2. \`scaffold\` — project skeleton (requires REQUIREMENTS.md)"
-    echo "3. Feature commands (\`content-model\`, \`behaviours\`, \`web-scripts\`, \`events\`, …) as needed"
+    echo "3. Feature commands as needed, for example:"
+    echo "   - Platform JAR: \`content-model\`, \`behaviours\`, \`web-scripts\`, \`actions\`, \`workflow\`, \`scheduled-jobs\`, \`bootstrap-loader\`, \`rule-conditions\`, \`repository-patch\`, \`transforms\`"
+    echo "   - Out-of-process: \`events\`"
+    echo "   - Share JAR: \`share-config\`, \`surf\`, \`aikau\`"
+    echo "   - ACA/ADW: \`aca-extension\`"
     echo "4. \`docker-compose\` — before integration tests"
     echo "5. \`test\` — last"
     echo ""
@@ -123,4 +127,13 @@ done < <(find "$COMMANDS_DIR" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort)
     echo "See \`CURSOR.md\` for hooks, @ references, and troubleshooting."
 } >> "$ORCH"
 
-printf 'Generated %d Cursor skills in %s\n' "$(find "$CURSOR_SKILLS" -mindepth 1 -maxdepth 1 -type d | wc -l)" "$CURSOR_SKILLS"
+skill_dirs=$(find "$CURSOR_SKILLS" -mindepth 1 -maxdepth 1 -type d | wc -l)
+cmd_count=$(find "$COMMANDS_DIR" -maxdepth 1 -type f -name '*.md' | wc -l)
+orch_count=$(grep -c '^| `' "$ORCH" || true)
+
+if [ "$cmd_count" -ne "$orch_count" ]; then
+    printf 'Error: orchestrator lists %s commands but commands/ has %s\n' "$orch_count" "$cmd_count" >&2
+    exit 1
+fi
+
+printf 'Generated %s Cursor skills (%s commands in orchestrator) in %s\n' "$skill_dirs" "$orch_count" "$CURSOR_SKILLS"

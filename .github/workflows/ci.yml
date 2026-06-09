@@ -70,10 +70,24 @@ jobs:
           count=$(find .cursor/skills -name 'SKILL.md' | wc -l)
           echo "Found $count Cursor skills"
           [ "$count" -ge 11 ] || { echo "Expected at least 11 Cursor skills"; exit 1; }
+          cmd_count=$(find commands -name '*.md' | wc -l)
+          orch_count=$(grep -c '^| `' .cursor/skills/aiup-alfresco/SKILL.md)
+          echo "Commands: $cmd_count, orchestrator entries: $orch_count"
+          [ "$cmd_count" -eq "$orch_count" ] || { echo "Orchestrator out of sync with commands/"; exit 1; }
           for f in .cursor/skills/*/SKILL.md; do
             grep -q '^name:' "$f" || { echo "Missing name in $f"; exit 1; }
             grep -q '^description:' "$f" || { echo "Missing description in $f"; exit 1; }
           done
+      - name: Verify traceability artefact classifier
+        run: |
+          chmod +x scripts/traceability-artefacts.sh
+          source scripts/traceability-artefacts.sh
+          classify_traceability_artefact "src/main/java/com/example/job/MyJob.java"
+          [ "$ARTEFACT_TYPE" = "scheduled-job" ]
+          classify_traceability_artefact "extensions/my-ext.plugin.json"
+          [ "$ARTEFACT_TYPE" = "aca-extension" ]
+          classify_traceability_artefact "processes/approval.bpmn"
+          [ "$ARTEFACT_TYPE" = "workflow" ]
       - name: Check Cursor hooks
         run: |
           test -f .cursor/hooks.json

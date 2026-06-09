@@ -14,7 +14,7 @@ This repository is a [Claude Code](https://claude.com/claude-code) plugin **and*
 | Artifact | Role |
 |----------|------|
 | [`.cursor/rules/aiup-alfresco.mdc`](./.cursor/rules/aiup-alfresco.mdc) | Tells the agent to follow [`AGENTS.md`](./AGENTS.md) and treat `commands/` and `.cursor/skills/` as the AIUP workflow. Enabled with `alwaysApply: true`. |
-| [`.cursor/skills/`](./.cursor/skills/) | **11 Cursor-native skills**: 7 validators, 3 agent guides, and **`aiup-alfresco`** (command orchestrator). Regenerate from sources with `./scripts/build-cursor-skills.sh`. |
+| [`.cursor/skills/`](./.cursor/skills/) | **11 Cursor-native skills**: 7 validators, 3 agent guides, and **`aiup-alfresco`** (orchestrator listing all `commands/*.md`). Regenerate after upstream merges: `./scripts/build-cursor-skills.sh`. |
 | [`AGENTS.md`](./AGENTS.md) | Full Alfresco / SDK conventions (versions, layout, forbidden patterns, tests). |
 | [`commands/*.md`](./commands/) | Portable specifications for each AIUP step (`requirements`, `scaffold`, `content-model`, …). |
 
@@ -71,7 +71,9 @@ With user arguments (passed through to the prompt):
 ./scripts/aiup-command.sh list
 ```
 
-Suggested order matches [README.md](./README.md): `requirements` → `scaffold` → feature commands (`content-model`, `workflow`, …) → `docker-compose` → `test`.
+Suggested order matches [README.md](./README.md): `requirements` → `scaffold` → feature commands (`content-model`, `workflow`, `scheduled-jobs`, `bootstrap-loader`, `rule-conditions`, `repository-patch`, `transforms`, `aca-extension`, …) → `docker-compose` → `test`.
+
+After merging upstream changes, always run `./scripts/build-cursor-skills.sh` so the `aiup-alfresco` orchestrator includes new commands.
 
 ## Skills and subagents
 
