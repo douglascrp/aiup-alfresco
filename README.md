@@ -86,6 +86,7 @@ See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow and [CURSOR.m
    /web-scripts         # Generate Web Script descriptors & controllers
    /behaviours          # Scaffold behaviours/policies
    /actions             # Scaffold action executors
+   /scheduled-jobs      # Generate cluster-safe Quartz scheduled job + unit test
    /docker-compose      # Generate full ACS stack compose.yaml
    /test                # Generate integration tests
    ```
@@ -133,6 +134,12 @@ See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow and [CURSOR.m
 | `/web-scripts` | In-Process | Any | Web Script descriptor + controller + FreeMarker template |
 | `/behaviours` | In-Process | Any | Behaviour/policy class + Spring bean wiring |
 | `/actions` | In-Process | Any | `ActionExecuter` class + bean registration |
+| `/scheduled-jobs` | In-Process | Any | Cluster-safe Quartz `AbstractScheduledLockedJob` + executer bean + `CronTriggerBean` registration + unit test |
+| `/bootstrap-loader` | In-Process | Any | `AbstractModuleComponent` data loader that creates initial folders/categories exactly once per module version + unit test |
+| `/rule-conditions` | In-Process | Any | Custom `ActionConditionEvaluatorAbstractBase` rule condition with parameter definitions, Spring registration, and unit test |
+| `/repository-patch` | In-Process | Any | `AbstractPatch` data migration patch with schema version range, `basePatch` registration in `patch-context.xml`, and unit test |
+| `/transforms` | In-Process + Out-of-Process | Any | `RenditionDefinition2Impl` rendition definition; optional MIME type registration; optional custom `TransformEngine` + `CustomTransformer` Spring Boot engine project with `engine_config.json` and `Dockerfile` |
+| `/aca-extension` | ACA/ADW (Angular) | Any | Full ACA/ADW UI extension: `plugin.json` manifest, `provideExtension()` providers function, NgRx actions + effects, Angular standalone components (page, sidebar), HTTP service, and integration patch instructions |
 | `/share-config` | Share JAR | Any | `share-config-custom.xml` + Share message bundle + optional evaluator stub |
 | `/surf` | Share JAR | Any | Surf extension metadata + page/component web scripts + optional message bundle/evaluator |
 | `/aikau` | Share JAR | Any | Aikau page descriptors + page-model JS + optional widget module/message bundle |
@@ -215,10 +222,13 @@ Notes:
 
 Skills are invoked automatically by Claude during command execution:
 
-- **content-model-validator** — validates model XML structure and naming *(In-Process)*
-- **docker-compose-healthcheck-injector** — ensures healthchecks on all services *(Both)*
+- **content-model-validator** — validates model XML structure and naming conventions *(In-Process)*
+- **docker-compose-healthcheck-injector** — ensures every service has a healthcheck block *(Both)*
 - **sdk-version-detector** — detects In-Process vs Out-of-Process SDK and adjusts generated code *(Both)*
 - **event-api-topology-checker** — validates ActiveMQ topic names and event consumer patterns *(Out-of-Process)*
+- **workflow-bpmn-validator** — validates Activiti BPMN and companion workflow model XML *(In-Process)*
+- **migration-advisor** — detects deprecated Alfresco APIs and suggests modern replacements *(Both)*
+- **permission-aware-query-builder** — warns on ACL bypass issues in search and query code *(In-Process)*
 
 ## Agents
 
@@ -328,8 +338,8 @@ Three hooks fire automatically during development:
 
 The current workflow covers the core Alfresco extension paths first. The following areas are planned next so the repository can guide a broader set of real-world implementations:
 
-- **Scheduled jobs**: repository cron-style jobs, Spring/Quartz schedulers, maintenance and batch jobs, and recurring tasks initialized at bootstrap time
-- **Bootstrap and upgrade mechanics**: module components, repository patches, data bootstrap loaders, and upgrade tasks
-- **Rule framework extras**: folder rule setup patterns, rule conditions, and admin-facing rule configuration assets beyond standalone action executers
-- **Custom transforms and renditions**: custom transform engines, mimetype registration, rendition definitions, thumbnails, and transform routing
-- **UI extensions**: Share/Surf/Aikau extensions, Share forms, dashlets, evaluators, and ADF/ACA/ADW frontends
+- ~~**Scheduled jobs**~~ — delivered: `/scheduled-jobs`
+- ~~**Bootstrap and upgrade mechanics**~~ — delivered: `/bootstrap-loader` (initial data), `/repository-patch` (data migration)
+- ~~**Rule framework extras** (rule conditions)~~ — delivered: `/rule-conditions`; admin-facing rule UI configuration (Share) remains planned
+- ~~**Custom transforms and renditions**~~ — delivered: `/transforms`
+- ~~**UI extensions** (ACA/ADW)~~ — delivered: `/aca-extension`; Share/Surf/Aikau already covered by `/share-config`, `/surf`, `/aikau`

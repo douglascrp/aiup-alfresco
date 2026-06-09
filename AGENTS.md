@@ -117,6 +117,7 @@ Key dependency (event-driven integration):
 <dependency>
     <groupId>org.alfresco</groupId>
     <artifactId>alfresco-java-event-api-spring-boot-starter</artifactId>
+    <version>7.2.0</version>
 </dependency>
 ```
 
@@ -239,7 +240,7 @@ module.repo.version.min=26.1
 - **Dictionary bootstrap parent**: `dictionaryModelBootstrap`
 
 ### Web Script API Paths
-- **Custom Web Scripts**: `/alfresco/s/api/{prefix}/{resource}`
+- **Custom Web Scripts**: `/api/{prefix}/{resource}`
 - Resource names: plural nouns, kebab-case
 - No verbs in paths
 - Web Script descriptor file: `{resource}.{method}.desc.xml` — e.g. `invoices.get.desc.xml`
@@ -508,6 +509,443 @@ environment:
 
 ---
 
+## Transform & Rendition Model
+
+> ACS 26.1 uses an **out-of-process Transform Service** architecture. Rendition definitions
+> live in the Platform JAR; actual conversion logic runs in a separate container.
+> Before building a custom transform engine, verify that the required source→target mimetype
+> pair is not already covered by `alfresco-transform-core-aio` (ImageMagick, LibreOffice,
+> PDFRenderer, Tika).
+
+### Technology
+
+| Component | Version | Role |
+|-----------|---------|------|
+| Rendition Service 2 | ACS 26.1 built-in | Routes rendition requests to transforms |
+| `alfresco-transform-core-aio` | 5.4.0 | All-in-one container: ImageMagick, LibreOffice, PDFRenderer, Tika |
+| Custom engine parent POM | `org.alfresco:alfresco-transform-core:5.4.0` | SDK for building custom engines |
+
+### File Placement
+
+| Artifact | Location |
+|----------|----------|
+| Rendition definition bean | `src/main/resources/alfresco/module/{module-id}/context/rendition-context.xml` (Platform JAR) |
+| MIME type registration | `src/main/resources/alfresco/extension/mimetype/mimetypes-extension-map.xml` (Platform JAR) |
+| Custom engine `TransformEngine` | `{engine-name}/src/main/java/{package}/transform/{EngineName}Engine.java` (separate project) |
+| Custom engine `CustomTransformer` | `{engine-name}/src/main/java/{package}/transform/{EngineName}Transformer.java` (separate project) |
+| Engine config JSON | `{engine-name}/src/main/resources/{engineName}_engine_config.json` (separate project) |
+| Dockerfile | `{engine-name}/Dockerfile` (separate project) |
+
+### Rendition Definition Pattern (Platform JAR)
+
+```xml
+<bean id="{prefix}.rendition.{renditionName}"
+      class="org.alfresco.repo.rendition2.RenditionDefinition2Impl">
+    <constructor-arg name="renditionName"   value="{renditionName}"/>
+    <constructor-arg name="targetMimetype"  value="{targetMimetype}"/>
+    <constructor-arg name="transformOptions">
+        <map>
+            <entry key="resizeWidth"         value="200"/>
+            <entry key="resizeHeight"        value="200"/>
+            <entry key="maintainAspectRatio" value="true"/>
+            <entry key="thumbnail"           value="true"/>
+            <entry key="timeout"
+                   value="${system.thumbnail.definition.default.timeoutMs}"/>
+        </map>
+    </constructor-arg>
+    <constructor-arg name="registry" ref="renditionDefinitionRegistry2"/>
+</bean>
+```
+
+- Use `RenditionDefinition2Impl` — the ACS 26.1 Rendition Service 2 class.
+- Pass `registry` ref pointing at `renditionDefinitionRegistry2` — auto-registers on construction.
+- Always include a `timeout` entry using the system property.
+
+### MIME Type Registration (Platform JAR)
+
+```xml
+<!-- alfresco/extension/mimetype/mimetypes-extension-map.xml -->
+<alfresco-config area="mimetype-map">
+    <config evaluator="string-compare" condition="Mimetype Map">
+        <mimetypes>
+            <mimetype mimetype="{newMimetype}" display="{Display Name}">
+                <extension>{ext}</extension>
+            </mimetype>
+        </mimetypes>
+    </config>
+</alfresco-config>
+```
+
+This file uses Alfresco config XML format (not Spring). ACS auto-discovers it from
+`alfresco/extension/mimetype/` on the classpath — no `<import>` in `module-context.xml` needed.
+
+### Custom Engine Pattern (Spring Boot, separate project)
+
+A custom engine is a standalone Spring Boot project with parent `org.alfresco:alfresco-transform-core:5.4.0`.
+It implements two Spring `@Component` beans:
+- `TransformEngine` — declares engine name, startup message, config path, and health-probe transform.
+- `CustomTransformer` — implements `transform(sourceMimetype, inputStream, targetMimetype, outputStream, options, manager)`.
+
+**Do NOT generate `Application.java`** — the main class `org.alfresco.transform.base.Application`
+is provided by the `alfresco-base-t-engine` dependency. Declare it in the `spring-boot-maven-plugin`
+`<mainClass>` configuration instead.
+
+The key dependency providing HTTP endpoints, ActiveMQ wiring, and the Application class is:
+```xml
+<dependency>
+    <groupId>org.alfresco</groupId>
+    <artifactId>alfresco-base-t-engine</artifactId>
+    <version>5.4.0</version>
+</dependency>
+```
+
+The engine name in `getTransformerName()` must match the `transformerName` in `engine_config.json`
+and the queue name prefix in `application.yml` (`queue.engineRequestQueue: {engineName}-engine-queue`).
+
+**ACS 26.1 Integration (Transform Router pattern):**
+- The engine registers with `transform-router`, not directly with ACS.
+- In `compose.yaml`, add to `transform-router` environment:
+  - `{ENGINE_UPPER}_URL: http://{engine-service}:8090`
+  - `TRANSFORMER_QUEUE_{ENGINE_UPPER}: {engineName}-engine-queue`
+- The engine service itself needs `ACTIVEMQ_URL`, `ACTIVEMQ_USER`, `ACTIVEMQ_PASSWORD`, and `FILE_STORE_URL`.
+- **Never add `localTransform.{name}.url`** to ACS JAVA_OPTS for ACS 26.1 — that is the ACS 25.x pattern.
+
+Engine exposes port `8090`.
+
+---
+
+## Repository Patch Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for repository patches.
+> They run inside the ACS JVM on startup, migrate **existing** data between module versions, and are
+> recorded permanently in `alf_applied_patch`. Use a bootstrap loader (`/bootstrap-loader`) for
+> **initial** data creation; use a patch for **migration** of existing content.
+
+### Technology
+
+ACS 26.1 manages patches via `org.alfresco.repo.admin.patch.AbstractPatch`. The patch service
+checks `alf_applied_patch` on every startup and skips already-applied patches. Schema version
+integers (`fixesFromSchema`, `fixesToSchema`, `targetSchema`) control applicability. The
+`targetSchema` for ACS 26.1 (alfresco-repository 7.43) is **5026**.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Patch class | `src/main/java/{package}/patch/{PatchName}Patch.java` |
+| Patch context XML | `src/main/resources/alfresco/module/{module-id}/context/patch-context.xml` |
+| Unit test | `src/test/java/{package}/patch/{PatchName}PatchTest.java` |
+
+### Naming Conventions
+
+- **Class name**: `{PatchName}Patch` — extends `AbstractPatch`
+- **Patch ID**: `patch.{module-id}.{camelCaseName}` — globally unique, used as the key in `alf_applied_patch`
+- **Bean ID**: same as the patch ID (`patch.{module-id}.{camelCaseName}`)
+- **Context file**: `patch-context.xml` — separate from `bootstrap-context.xml` and `service-context.xml`
+
+### Spring Registration Pattern
+
+```xml
+<bean id="patch.{module-id}.{camelCaseName}"
+      class="{package}.patch.{PatchName}Patch"
+      parent="basePatch">
+    <property name="id"              value="patch.{module-id}.{camelCaseName}"/>
+    <property name="description"     value="What this patch does"/>
+    <property name="fixesFromSchema" value="0"/>
+    <property name="fixesToSchema"   value="5026"/>
+    <property name="targetSchema"    value="5026"/>
+</bean>
+```
+
+- `parent="basePatch"` auto-injects: `nodeService`, `searchService`, `transactionService`, `namespaceService`.
+- Register `patch-context.xml` by adding an `<import>` to `module-context.xml`.
+- To declare a dependency on another patch: `<property name="dependsOn"><list><ref bean="..."/></list></property>`.
+
+### Java Class Pattern
+
+```java
+public class {PatchName}Patch extends AbstractPatch {
+    @Override
+    protected String applyInternal() throws Exception {
+        // use inherited: nodeService, searchService, transactionService, namespaceService
+        // return a human-readable summary of what was done
+        return "Patch applied: N nodes updated";
+    }
+}
+```
+
+- Extend `AbstractPatch` and override `applyInternal()` — this is the only method to implement.
+- Do **not** declare `nodeService`, `searchService`, etc. as fields — use the `protected` inherited fields.
+- Always close `ResultSet` in a `finally` block.
+- Always check `nodeService.exists(nodeRef)` before acting — concurrent deletes can invalidate nodes.
+- Do **not** add `@Transactional` or wrap in `retryingTransactionHelper` — `AbstractPatch` manages the transaction.
+- Use `SearchService.LANGUAGE_FTS_ALFRESCO` — never `LANGUAGE_LUCENE`.
+
+### Schema Version Values
+
+| Use case | `fixesFromSchema` | `fixesToSchema` | `targetSchema` |
+|----------|-------------------|-----------------|----------------|
+| Apply on every ACS 26.1 install | `0` | `5026` | `5026` |
+| Apply only when upgrading from a specific version | schema of previous version | `5026` | `5026` |
+
+### Re-running a Patch
+
+The patch is keyed in `alf_applied_patch` by the `id` property value. To re-run in development,
+delete the row from `alf_applied_patch` where `id = '{patch-id}'`, or change the `id` property to a
+new value. Never change the `id` in production without understanding the idempotency implications.
+
+---
+
+## Rule Condition Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for custom rule condition evaluators. They extend ACS's folder Rules engine and are available to both rule configuration and the Action Service REST API.
+
+### Technology
+
+ACS 26.1 ships `org.alfresco.repo.action.evaluator.ActionConditionEvaluatorAbstractBase` as the standard base class for all condition evaluators. The parent Spring bean `action-condition-evaluator` registers the evaluator with the Action Service via its `init()` method.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Condition evaluator class | `src/main/java/{package}/action/condition/{ConditionName}Condition.java` |
+| Spring bean registration | `src/main/resources/alfresco/module/{module-id}/context/service-context.xml` |
+| Unit test | `src/test/java/{package}/action/condition/{ConditionName}ConditionTest.java` |
+
+### Naming Conventions
+
+- **Class name**: `{ConditionName}Condition` — in package `{package}.action.condition`
+- **Condition ID constant**: `public static final String NAME = "{prefix}-{condition-name}"` — kebab-case, prefix-scoped (e.g. `sc-has-aspect`)
+- **Parameter constants**: `public static final String PARAM_{UPPER} = "{prefix}-{param-name}"`
+- **Bean ID**: `{prefix}.{conditionName}Condition`
+
+### Spring Registration Pattern
+
+```xml
+<bean id="{prefix}.{conditionName}Condition"
+      class="{package}.action.condition.{ConditionName}Condition"
+      parent="action-condition-evaluator">
+    <property name="nodeService" ref="NodeService"/>
+</bean>
+```
+
+- Use `parent="action-condition-evaluator"` — this handles `init()` and registration with the Action Service automatically.
+- Conditions and action executers share `service-context.xml` — no separate context file is needed.
+
+### Java Class Pattern
+
+```java
+public class {ConditionName}Condition extends ActionConditionEvaluatorAbstractBase {
+    public static final String NAME = "{prefix}-{condition-name}";
+
+    @Override
+    protected boolean evaluateImpl(ActionCondition actionCondition, NodeRef actionedUponNodeRef) {
+        if (!nodeService.exists(actionedUponNodeRef)) return false;
+        // condition logic — return true if satisfied
+    }
+
+    @Override
+    protected void addParameterDefinitions(List<ParameterDefinition> paramList) {
+        // declare parameters; omit override if condition takes no parameters
+    }
+    // setter injection only
+}
+```
+
+- Extend `ActionConditionEvaluatorAbstractBase`, not the interface `ActionConditionEvaluator` directly.
+- Override `evaluateImpl(ActionCondition, NodeRef)` — **not** `evaluate()` (which is implemented by the abstract base).
+- Always guard with `nodeService.exists()` before operating on the node.
+- Read parameter values with `actionCondition.getParameterValue(PARAM_NAME)`.
+
+### Share UI Exposure
+
+Registering the bean makes the condition available programmatically. To show it in the **Share Rules UI** dropdown, a `share-config-custom.xml` entry in a Share JAR is also needed — generate that with `/share-config`.
+
+---
+
+## Bootstrap Loader Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for bootstrap loaders. They run inside the ACS JVM during module startup, exactly once per module version.
+
+### Technology
+
+ACS 26.1 tracks module component execution in the repository database. The correct base class is `org.alfresco.repo.module.AbstractModuleComponent`. The framework records each execution keyed by `moduleId + name + sinceVersion`, preventing re-execution on restart.
+
+**Do NOT** use `@PostConstruct`, `init-method`, or `ApplicationReadyEvent` for repository data initialisation — they fire on every server restart and create duplicates.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Bootstrap loader class | `src/main/java/{package}/bootstrap/{LoaderName}BootstrapLoader.java` |
+| Bootstrap context entry | `src/main/resources/alfresco/module/{module-id}/context/bootstrap-context.xml` |
+| Unit test | `src/test/java/{package}/bootstrap/{LoaderName}BootstrapLoaderTest.java` |
+
+### Naming Conventions
+
+- **Class name**: `{LoaderName}BootstrapLoader` — extends `AbstractModuleComponent`
+- **Bean ID**: `{groupId}.{LoaderName}BootstrapLoader` — groupId prefix ensures global uniqueness across modules
+- `moduleId` property: must exactly match the value in `module.properties`
+- `sinceVersion`: module version string at which this loader was introduced (e.g. `1.0`)
+- `appliesFromVersion`: always `0.99` — ensures the loader also runs on `1.0-SNAPSHOT` builds
+
+### Spring Registration Pattern
+
+```xml
+<bean id="{groupId}.{LoaderName}BootstrapLoader"
+      class="{package}.bootstrap.{LoaderName}BootstrapLoader"
+      parent="module.baseComponent">
+    <property name="moduleId"           value="{module-id}"/>
+    <property name="name"               value="{LoaderName}BootstrapLoader"/>
+    <property name="description"        value="Bootstrap initial data for {module-id}"/>
+    <property name="sinceVersion"       value="1.0"/>
+    <property name="appliesFromVersion" value="0.99"/>
+    <property name="nodeService"        ref="NodeService"/>
+    <property name="fileFolderService"  ref="FileFolderService"/>
+    <property name="nodeLocatorService" ref="nodeLocatorService"/>
+</bean>
+```
+
+- Place in `bootstrap-context.xml` (the same file as `dictionaryBootstrap` if content model exists).
+- Do **not** add `depends-on="dictionaryBootstrap"` unless the loader references custom model types — the module framework already handles ordering.
+
+### Java Class Pattern
+
+```java
+public class {LoaderName}BootstrapLoader extends AbstractModuleComponent {
+    private static final Logger LOG = LoggerFactory.getLogger({LoaderName}BootstrapLoader.class);
+    private NodeService nodeService;
+    private FileFolderService fileFolderService;
+    private NodeLocatorService nodeLocatorService;
+
+    @Override
+    protected void executeInternal() throws Throwable {
+        NodeRef companyHome = nodeLocatorService.getNode("companyhome", null, null);
+        // create folders / categories / reference data
+    }
+    // setter injection only — no @Autowired
+}
+```
+
+- Extend `AbstractModuleComponent` and override `executeInternal()` — this is the only lifecycle method.
+- Do **not** add `@Transactional` — the framework provides a transaction automatically.
+- Do **not** wrap calls in `RetryingTransactionHelper` — already in a transaction.
+- Always obtain Company Home via `nodeLocatorService.getNode("companyhome", null, null)` — never hardcode a `NodeRef`.
+- Include `findOrCreateFolder()` helpers so the loader is safe to re-run in dev environments where the DB was reset without wiping the content store.
+
+### Re-running a Loader
+
+To re-run a loader after its first execution, **increment `sinceVersion`** in the bean definition and in `module.properties`. Never delete rows from `alf_applied_patch` or `alf_module_prop` manually.
+
+---
+
+## Scheduled Job Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for scheduled jobs. They run inside the ACS JVM using the embedded Quartz scheduler.
+
+### Technology
+
+ACS 26.1 embeds **Quartz 2.x** managed by the `schedulerFactory` bean. All scheduled jobs must use the Alfresco cluster-safe abstraction.
+
+**Do NOT** use Spring's `@Scheduled` annotation in a Platform JAR. It is not wired to Quartz or the `JobLockService`, so it fires on every node in a cluster simultaneously.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Job class (Quartz entry point) | `src/main/java/{package}/job/{JobName}Job.java` |
+| Executer class (business logic) | `src/main/java/{package}/job/{JobName}JobExecuter.java` |
+| Scheduler Spring context | `src/main/resources/alfresco/module/{module-id}/context/scheduler-context.xml` |
+| Unit test | `src/test/java/{package}/job/{JobName}JobExecuterTest.java` |
+
+### Naming Conventions
+
+- **Job class**: `{JobName}Job.java` — extends `AbstractScheduledLockedJob`
+- **Executer class**: `{JobName}JobExecuter.java` — plain Spring bean, no Quartz dependency
+- **Bean IDs**: `{prefix}.{jobName}Executer`, `{prefix}.{jobName}JobDetail`, `{prefix}.{jobName}Trigger`
+- **Cron property key**: `{prefix}.{jobName}.cron` with a sensible default
+- **Enabled property key**: `{prefix}.{jobName}.enabled` defaulting to `true`
+
+### Spring Registration Pattern
+
+```xml
+<!-- Executer holds all business logic -->
+<bean id="{prefix}.{jobName}Executer"
+      class="{package}.job.{JobName}JobExecuter">
+    <property name="retryingTransactionHelper" ref="retryingTransactionHelper"/>
+    <property name="serviceRegistry"           ref="ServiceRegistry"/>
+</bean>
+
+<!-- Job detail wires Quartz to the executer -->
+<bean id="{prefix}.{jobName}JobDetail"
+      class="org.springframework.scheduling.quartz.JobDetailFactoryBean">
+    <property name="jobClass" value="{package}.job.{JobName}Job"/>
+    <property name="jobDataAsMap">
+        <map>
+            <entry key="executer" value-ref="{prefix}.{jobName}Executer"/>
+        </map>
+    </property>
+</bean>
+
+<!-- Trigger: cron and enabled are property-configurable with defaults -->
+<bean id="{prefix}.{jobName}Trigger"
+      class="org.alfresco.util.CronTriggerBean">
+    <property name="jobDetail"      ref="{prefix}.{jobName}JobDetail"/>
+    <property name="scheduler"      ref="schedulerFactory"/>
+    <property name="cronExpression" value="${{prefix}.{jobName}.cron:{cronDefault}}"/>
+    <property name="enabled"        value="${{prefix}.{jobName}.enabled:true}"/>
+    <property name="startDelay"     value="240000"/>
+</bean>
+```
+
+- `startDelay` must be at least `240000` ms (4 minutes) so ACS fully initialises before first execution.
+- Cron expressions are Quartz 6-field format: `seconds minutes hours dayOfMonth month dayOfWeek`.
+  Common examples: `0 0 0 * * ?` (midnight daily), `0 0/30 * * * ?` (every 30 minutes).
+- Register `scheduler-context.xml` by adding an `<import>` to `module-context.xml`.
+
+### Job Class Pattern
+
+```java
+public class {JobName}Job extends AbstractScheduledLockedJob {
+    private {JobName}JobExecuter executer;
+
+    @Override
+    public void executeJob(JobExecutionContext context) throws JobExecutionException {
+        executer.execute();
+    }
+
+    public void setExecuter({JobName}JobExecuter executer) {
+        this.executer = executer;
+    }
+}
+```
+
+- The Job class must be **stateless** — no Alfresco service fields, no shared mutable state.
+- `AbstractScheduledLockedJob` acquires a `JobLockService` lock before calling `executeJob()`,
+  preventing concurrent execution on cluster nodes.
+
+### Executer Class Pattern
+
+```java
+public class {JobName}JobExecuter {
+    private RetryingTransactionHelper retryingTransactionHelper;
+    private ServiceRegistry serviceRegistry;
+
+    public void execute() {
+        retryingTransactionHelper.doInTransaction(() -> {
+            // business logic
+            return null;
+        }, false, true);
+    }
+    // setter injection only — no @Autowired
+}
+```
+
+- Wrap every repository operation in `retryingTransactionHelper.doInTransaction()`.
+- The executer is a plain POJO: no Quartz imports, no `@Transactional`. This makes it testable with Mockito without starting Quartz or ACS.
+
+---
+
 ## Workflow Model
 
 > The Maven In-Process SDK (Platform JAR) is the only deployment target for workflows. Workflows deploy into the ACS JVM alongside other platform code.
@@ -649,12 +1087,104 @@ Always discover `processDefinitionId` dynamically from `GET /process-definitions
 
 ---
 
+## ACA / ADW Extension Model
+
+> ACA/ADW extensions are **source drop-ins**, not npm packages. The extension folder is
+> copied into an existing ACA or ADW source checkout and compiled as part of the host
+> application's build. There is no Maven build, no Platform JAR, and no separate npm publish
+> step. Reference: `https://github.com/aborroy/alfresco-content-lake-ui`
+
+### Technology
+
+| Component | Version | Role |
+|-----------|---------|------|
+| Angular | 19.x | Component framework |
+| ADF (`@alfresco/adf-core`, `@alfresco/adf-extensions`) | 8.4.x | ACA/ADW component library and extension SPI |
+| NgRx (`@ngrx/effects`) | — | Side-effect handling for plugin actions |
+| `@alfresco/js-api` | — | Typed Alfresco REST API client |
+
+### Extension Structure
+
+```
+{ext-name}/
+├── src/
+│   ├── assets/{ext-name}.plugin.json   # ADF extension manifest (JSON)
+│   ├── lib/
+│   │   ├── components/                 # Standalone Angular components
+│   │   ├── services/                   # Injectable services using AppConfigService
+│   │   ├── store/                      # NgRx actions + effects
+│   │   └── models/                     # TypeScript interfaces only
+│   ├── {ext-name}.module.ts            # provideExtension() + @NgModule compat shim
+│   └── public-api.ts
+```
+
+### Plugin Manifest (`plugin.json`)
+
+Declares all extension points declaratively. Extension points available:
+
+| Section | What it adds |
+|---------|-------------|
+| `routes` | A new Angular route (full page) |
+| `features.navbar` | Left-nav entry pointing at the route |
+| `features.toolbar` | Button in the document-list or viewer toolbar |
+| `features.contextMenu` | Right-click menu item |
+| `features.sidebar.tabs` | New tab in the ACA info drawer |
+
+`actions` define NgRx action type strings dispatched when the user clicks. `rules.visible`
+controls conditional display using ADF rule evaluators (e.g. `app.selection.file`).
+
+### Providers Function Pattern
+
+```typescript
+export function provide{ExtName}Extension(): (Provider | EnvironmentProviders)[] {
+  return [
+    provideExtensionConfig(['{ext-name}.plugin.json']),
+    provideEffects({ExtName}Effects),
+    {
+      provide: APP_INITIALIZER,
+      useFactory: register{ExtName}Components,
+      deps: [ExtensionService],
+      multi: true
+    }
+  ];
+}
+```
+
+- Register components with `ExtensionService.setComponents()` inside the `APP_INITIALIZER` factory.
+- The `APP_INITIALIZER` factory runs before routing resolves; registration must happen here.
+- Expose a deprecated `@NgModule` shim for ADW compatibility.
+
+### Service Pattern
+
+```typescript
+@Injectable({ providedIn: 'root' })
+export class {ServiceName}Service {
+  private baseUrl = this.appConfig.get<string>(
+    'plugins.{extPrefix}Service.baseUrl', '/default-url'
+  );
+  constructor(private http: HttpClient, private appConfig: AppConfigService) {}
+}
+```
+
+### Integration Patches (applied to the ACA/ADW source)
+
+Three files in the host app must be patched after copying the extension folder:
+
+1. `app/src/app/extensions.module.ts` — import and spread `provide{ExtName}Extension()`
+2. `app/project.json` — add `{ext-name}.plugin.json` to `build.options.assets`
+3. `app/src/app.config.json` — add `plugins.{extPrefix}Service.baseUrl`
+
+---
+
 ## Forbidden Patterns
 
 These patterns must **never** appear in generated code. Actively check for and reject them.
 
 | Pattern | Reason | Alternative |
 |---------|--------|-------------|
+| Declaring an ACA/ADW Angular component in `@NgModule` `imports` or `declarations` | ACA/ADW extension components must be `standalone: true` and registered with `ExtensionService.setComponents()` via `APP_INITIALIZER` — not through NgModule metadata | Use `standalone: true` and register via `extensions.setComponents()` |
+| Hardcoding backend API URLs in Angular services or components | URLs differ between dev, staging, and production; hardcoded paths break proxy configuration | Read from `AppConfigService` using `plugins.{extPrefix}Service.baseUrl` |
+| Generating a separate Angular `package.json` and `npm install` step for an ACA extension | ACA/ADW extensions are source drop-ins compiled as part of the host app — they share the host's `node_modules` | Copy the extension folder into `projects/` (ACA) or `libs/` (ADW Nx); no separate `package.json` |
 | Direct Hibernate/JPA access | Bypasses Alfresco service layer and permissions | Use `NodeService`, `ContentService` |
 | `AuthenticationUtil.runAsSystem` in user-facing code | Privilege escalation | Use `runAs(userName)` or proper permission checks |
 | Hardcoded credentials | Security vulnerability | Environment variables or encrypted properties |
@@ -676,3 +1206,29 @@ These patterns must **never** appear in generated code. Actively check for and r
 | Synchronous external HTTP calls inside service tasks or task listeners | Runs inside the ACS transaction; timeouts cause transaction rollback and workflow state corruption | Use Alfresco Action Service to queue async work; or use a separate boundary event for external integration |
 | Registering BPMN files via `dictionaryModelBootstrap` | `dictionaryModelBootstrap` does not know about Activiti's process engine — BPMN files are silently ignored | Use a separate `workflowDeployer` bean |
 | Omitting `bpm` import from workflow model XML | Workflow task types extend `bpm:startTask` or `bpm:activitiOutcomeTask` — the import is mandatory | Always add `<import uri="http://www.alfresco.org/model/bpm/1.0" prefix="bpm"/>` |
+| Using the legacy `RenditionDefinition` (Rendition Service 1) class for new renditions | Rendition Service 1 is deprecated in ACS 26.1; renditions defined with the old API may not fire through the out-of-process Transform Service | Use `org.alfresco.repo.rendition2.RenditionDefinition2Impl` with `registry` ref `renditionDefinitionRegistry2` |
+| Registering MIME types via Spring beans | The mimetype service does not discover Spring beans; the MIME type will not be registered | Place a `mimetypes-extension-map.xml` file under `alfresco/extension/mimetype/` using Alfresco config XML format |
+| Building a custom transform engine for a mimetype pair already in `alfresco-transform-core-aio` | Duplicates work, adds infrastructure complexity, and may conflict with the AIO container's routing | Verify coverage in ImageMagick, LibreOffice, PDFRenderer, and Tika before building a custom engine |
+| Generating `Application.java` in a custom T-Engine project | `alfresco-base-t-engine` already provides `org.alfresco.transform.base.Application`; a second main class causes a startup conflict | Set `<mainClass>org.alfresco.transform.base.Application</mainClass>` in the `spring-boot-maven-plugin` and omit `Application.java` |
+| Adding `localTransform.{name}.url` to ACS JAVA_OPTS for ACS 26.1 | That property is the ACS 25.x Community pattern (direct engine URL); ACS 26.1 routes transforms through `transform-router` | Register the engine with `transform-router` via `{ENGINE_UPPER}_URL` and `TRANSFORMER_QUEUE_{ENGINE_UPPER}` environment variables |
+| Implementing `Patch` interface directly in a custom patch | The interface has no transaction management, no schema version checking, and no `alf_applied_patch` recording | Extend `AbstractPatch` — it handles all lifecycle, transaction, and recording automatically |
+| Declaring `nodeService`, `searchService`, or `transactionService` as fields in a patch class | `basePatch` already injects these as `protected` fields on `AbstractPatch`; redeclaring them as new fields shadows the injected ones and causes `NullPointerException` | Use the inherited `protected` fields directly — do not re-declare or re-inject them |
+| Not closing `ResultSet` in a patch | Open `ResultSet` objects hold database cursors; failing to close them causes resource exhaustion in long-running patches | Always close `ResultSet` in a `finally` block: `if (results != null) results.close()` |
+| Using a patch to create initial data on a fresh install | Patches are designed for migration of existing data; on a fresh install `fixesFromSchema=0` patches do apply, but bootstrap loaders (`parent="module.baseComponent"`) are the correct pattern for initial data | Use `/bootstrap-loader` for first-install data; use `/repository-patch` for cross-version migration |
+| Implementing `ActionConditionEvaluator` directly in a custom condition | The interface has no `init()` or `addParameterDefinitions()` support; the evaluator is never registered with the Action Service | Extend `ActionConditionEvaluatorAbstractBase` — the abstract base calls `init()` automatically when wired with `parent="action-condition-evaluator"` |
+| Overriding `evaluate()` instead of `evaluateImpl()` in a condition evaluator | `evaluate()` is implemented by `ActionConditionEvaluatorAbstractBase` and must not be overridden — it handles pre/post logic and calls `evaluateImpl()` | Override `protected boolean evaluateImpl(ActionCondition, NodeRef)` only |
+| Using `parent="action-executer"` for a condition evaluator bean | `action-executer` registers the bean as an action, not a condition; the evaluator will not appear in the rule condition list | Use `parent="action-condition-evaluator"` |
+| `@PostConstruct` or `ApplicationReadyEvent` for repository data initialisation | Fires on every ACS restart, creating duplicate folders, categories, or nodes on each server start | Extend `AbstractModuleComponent` with `parent="module.baseComponent"` — the framework tracks execution in the DB and runs `executeInternal()` exactly once per `sinceVersion` |
+| Extending `AbstractLifecycleBean` for a data bootstrap loader | `AbstractLifecycleBean` does not integrate with the module component tracking system; provides no idempotency guarantee | Extend `AbstractModuleComponent` instead |
+| Hardcoding a `NodeRef` string for Company Home or other well-known locations in a bootstrap loader | NodeRef UUIDs differ between repositories; hardcoded refs break on any install other than the original | Use `nodeLocatorService.getNode("companyhome", null, null)` |
+| `RetryingTransactionHelper` inside `executeInternal()` | `AbstractModuleComponent.executeInternal()` already runs inside a transaction managed by the module framework; wrapping again causes nested transaction issues | Use repository services directly within `executeInternal()` |
+| `@Scheduled` in a Platform JAR | Spring's `@Scheduled` is not integrated with Quartz or `JobLockService`; fires on every cluster node simultaneously causing duplicate work and data corruption | Extend `AbstractScheduledLockedJob`, register via `CronTriggerBean` wired to `schedulerFactory` |
+| `@Transactional` on a scheduled job executer method | Alfresco's transaction infrastructure is managed by `RetryingTransactionHelper`, not Spring's `@Transactional` proxy | Wrap repository calls in `retryingTransactionHelper.doInTransaction()` |
+| Quartz `startDelay` below 240000 ms | ACS may not have fully initialised (dictionary, subsystems, indexes) when the job first fires, causing `NullPointerException` or `ServiceUnavailableException` | Always set `startDelay` to at least `240000` (4 minutes) on `CronTriggerBean` |
+| Alfresco service references as fields on a Quartz `Job` class | Quartz re-instantiates the Job class for each execution; injected fields are lost | Keep the Job class stateless; inject services into the Executer bean instead |
+| Two `AbstractModuleComponent` beans with the same `name` property in the same module | The framework keys execution records by `moduleId + name + sinceVersion`; duplicate names cause one loader to silently overwrite the other's execution record | Give each bootstrap loader a unique `name` value (e.g. `FoldersBootstrapLoader`, `CategoriesBootstrapLoader`) |
+| Non-unique patch `id` property across modules | `alf_applied_patch.id` is a unique key; if two modules declare the same id, the second patch is silently skipped | Always prefix patch IDs with the module ID: `patch.{module-id}.{uniqueName}` |
+| Missing `<repositories>` block in a custom Transform Engine `pom.xml` | `alfresco-transform-core` and `alfresco-base-t-engine` are on Alfresco Nexus, not Maven Central; the Docker build fails with `Non-resolvable parent POM` | Always include `<repository><id>alfresco-public</id><url>https://artifacts.alfresco.com/nexus/content/groups/public</url></repository>` in the engine `pom.xml` |
+| Missing Apache 2.0 license header on Java source files in an Out-of-Process Spring Boot project | The `alfresco-java-sdk` parent POM runs `license-maven-plugin:check` during the validate phase; files without the header cause `BUILD FAILURE: Some files do not have the expected license header` | Add the Apache 2.0 license header block at the top of every generated `.java` file in Out-of-Process projects |
+| Adding `solr6` or `elasticsearch` to the `alfresco` service's `depends_on` in compose.yaml | Creates a circular dependency: `alfresco → solr6 → alfresco`. Solr/OpenSearch discovers ACS after startup — ACS does not need to wait for them | The `alfresco` service depends only on `postgres`, `activemq`, and `transform-core-aio`. Solr/OpenSearch depend on `alfresco`. |
+| Accessing Alfresco repository services directly inside a Spring Boot Out-of-Process event listener | The event listener runs in a separate JVM with no access to `NodeService`, `ContentService`, or other repository beans | Call the Alfresco REST API (e.g. `/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}`) or delegate to a repository action via the Action REST API |
