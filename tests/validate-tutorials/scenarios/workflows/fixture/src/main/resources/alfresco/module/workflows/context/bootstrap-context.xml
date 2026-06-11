@@ -1,0 +1,7 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+<bean id="sc.workflowDeployer" parent="workflowDeployer">
+  <property name="workflowDefinitions"><list><props>
+    <prop key="engineId">activiti</prop>
+    <prop key="redeploy">false</prop>
+  </props></list></property>
+</bean></beans>

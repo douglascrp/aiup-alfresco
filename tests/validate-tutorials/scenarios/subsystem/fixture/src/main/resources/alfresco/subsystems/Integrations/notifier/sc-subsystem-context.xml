@@ -1,0 +1,6 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="sc.notifierService" class="com.someco.subsystem.NotifierService">
+    <property name="endpoint" value="${sc.notifier.endpoint}"/>
+    <property name="enabled" value="${sc.notifier.enabled}"/>
+  </bean>
+</beans>

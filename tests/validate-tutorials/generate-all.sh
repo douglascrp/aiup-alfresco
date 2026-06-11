@@ -4,7 +4,7 @@
 # Usage:
 #   generate-all.sh [scenario...]
 #
-# With no arguments, generates all 12 scenarios.
+# With no arguments, generates all scenarios.
 # With arguments, generates only the named scenarios:
 #   generate-all.sh content-types workflows
 #
@@ -28,18 +28,28 @@ cmds_for() {
         actions)            echo "scaffold content-model actions" ;;
         behaviours)         echo "scaffold content-model behaviours" ;;
         web-scripts)        echo "scaffold content-model web-scripts" ;;
+        rest-api)           echo "scaffold content-model rest-api" ;;
         workflows)          echo "scaffold content-model workflow" ;;
         scheduled-jobs)     echo "scaffold content-model scheduled-jobs" ;;
         bootstrap-loader)   echo "scaffold bootstrap-loader" ;;
         rule-conditions)    echo "scaffold content-model rule-conditions" ;;
+        permissions)        echo "scaffold content-model permissions" ;;
+        audit)              echo "scaffold content-model audit" ;;
         repository-patch)   echo "scaffold content-model repository-patch" ;;
         transforms)         echo "scaffold transforms" ;;
+        content-store)      echo "scaffold content-store" ;;
+        metadata-extractor) echo "scaffold content-model metadata-extractor" ;;
+        subsystem)          echo "scaffold subsystem" ;;
+        events)             echo "scaffold events" ;;
+        share-config)       echo "scaffold share-config" ;;
+        surf)               echo "scaffold surf" ;;
+        aikau)              echo "scaffold aikau" ;;
         aca-extension)      echo "aca-extension" ;;
         *) return 1 ;;
     esac
 }
 
-ALL_SCENARIOS="maven-sdk-baseline content-types actions behaviours web-scripts workflows scheduled-jobs bootstrap-loader rule-conditions repository-patch transforms aca-extension"
+ALL_SCENARIOS="maven-sdk-baseline content-types actions behaviours web-scripts rest-api workflows scheduled-jobs bootstrap-loader rule-conditions permissions audit repository-patch transforms content-store metadata-extractor subsystem events share-config surf aikau aca-extension"
 TARGETS="${*:-$ALL_SCENARIOS}"
 
 PASS=0

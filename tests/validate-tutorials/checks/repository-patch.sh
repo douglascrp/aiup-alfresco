@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: repository-patch
-# Usage: repository-patch.sh <generated-dir> <reference-dir>
+# Usage: repository-patch.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

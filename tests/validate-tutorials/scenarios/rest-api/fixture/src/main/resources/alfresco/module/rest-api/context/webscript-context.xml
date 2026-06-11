@@ -1,0 +1,2 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+<bean id="sc.vendorContractEntityResource" class="com.someco.rest.VendorContractEntityResource"/></beans>

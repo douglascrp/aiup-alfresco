@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model name="sc:contentModel" xmlns="http://www.alfresco.org/model/dictionary/1.0">
+    <description>SomeCo model</description>
+    <version>1.0</version>
+    <namespaces>
+        <namespace uri="http://www.someco.com/model/content/1.0" prefix="sc"/>
+    </namespaces>
+    <constraints>
+        <constraint name="sc:campaignList" type="LIST">
+            <parameter name="allowedValues"><list><value>A</value><value>B</value></list></parameter>
+        </constraint>
+    </constraints>
+    <types>
+        <type name="sc:doc">
+            <parent>cm:content</parent>
+            <properties>
+                <property name="sc:isActive"><type>d:boolean</type></property>
+            </properties>
+            <associations>
+                <association name="sc:relatedDocuments">
+                    <source><many>true</many></source>
+                    <target><class>sc:doc</class><many>true</many></target>
+                </association>
+            </associations>
+        </type>
+    </types>
+</model>

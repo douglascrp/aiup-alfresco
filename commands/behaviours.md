@@ -112,3 +112,73 @@ if (!isEligible(nodeRef)) {
 
 Failing to guard early causes every matching node event across the entire repository to pay
 the full cost of the behaviour, even when it is not configured for that node or folder.
+
+## Policy Reference
+
+Bind the right policy for the event you care about. All bindings are registered in `init()` via
+the injected `PolicyComponent`.
+
+### NodeService policies (most common)
+`OnCreateNodePolicy`, `OnUpdatePropertiesPolicy`, `OnDeleteNodePolicy`, `BeforeDeleteNodePolicy`,
+`OnAddAspectPolicy`, `OnRemoveAspectPolicy`, `OnMoveNodePolicy`. Bind to a class (type/aspect):
+
+```java
+policyComponent.bindClassBehaviour(
+    OnUpdatePropertiesPolicy.QNAME,
+    {Prefix}Model.TYPE_DOCUMENT,                 // type or aspect QName
+    new JavaBehaviour(this, "onUpdateProperties", NotificationFrequency.TRANSACTION_COMMIT));
+```
+
+### ContentService / content policies
+Fire when the **content stream** changes (distinct from a property update):
+`ContentServicePolicies.OnContentUpdatePolicy` (content written/replaced) and
+`OnContentPropertyUpdatePolicy`. Use these to react to the binary changing rather than metadata.
+
+```java
+policyComponent.bindClassBehaviour(
+    ContentServicePolicies.OnContentUpdatePolicy.QNAME,
+    {Prefix}Model.TYPE_DOCUMENT,
+    new JavaBehaviour(this, "onContentUpdate", NotificationFrequency.TRANSACTION_COMMIT));
+// public void onContentUpdate(NodeRef nodeRef, boolean newContent) { ... }
+```
+
+### Association policies
+React to associations being created/removed. Bind with `bindAssociationBehaviour`:
+`OnCreateChildAssociationPolicy`, `OnDeleteChildAssociationPolicy`, `OnCreateAssociationPolicy`,
+`OnDeleteAssociationPolicy`.
+
+```java
+policyComponent.bindAssociationBehaviour(
+    NodeServicePolicies.OnCreateChildAssociationPolicy.QNAME,
+    {Prefix}Model.TYPE_FOLDER,
+    {Prefix}Model.ASSOC_ATTACHMENTS,
+    new JavaBehaviour(this, "onCreateChildAssociation", NotificationFrequency.FIRST_EVENT));
+```
+
+### Property-scoped bindings
+To fire only when a **specific property** changes (not any property), use the three-argument
+`bindPropertyBehaviour` form:
+
+```java
+policyComponent.bindPropertyBehaviour(
+    OnUpdatePropertiesPolicy.QNAME,
+    {Prefix}Model.TYPE_DOCUMENT,
+    {Prefix}Model.PROP_STATUS,                   // scope to this property
+    new JavaBehaviour(this, "onUpdateProperties", NotificationFrequency.TRANSACTION_COMMIT));
+```
+
+### Disabling a behaviour (avoid recursion)
+When a behaviour modifies the same node it is bound to, disable it for the duration of the
+change to prevent re-entrant firing. Inject `BehaviourFilter` and always re-enable in `finally`.
+
+```java
+behaviourFilter.disableBehaviour(nodeRef, {Prefix}Model.ASPECT_AUDITABLE);
+try {
+    nodeService.setProperty(nodeRef, {Prefix}Model.PROP_STATUS, "Approved");
+} finally {
+    behaviourFilter.enableBehaviour(nodeRef, {Prefix}Model.ASPECT_AUDITABLE);
+}
+```
+
+- `disableBehaviour`/`enableBehaviour` must be balanced — always re-enable in a `finally` block.
+- Prefer disabling for a specific `(nodeRef, className)` over the global `disableBehaviour()` form.

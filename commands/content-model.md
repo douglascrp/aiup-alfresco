@@ -97,6 +97,131 @@ public interface {Name}Model {
 - Filename: `{PascalCasePrefix}Model.java` (e.g. prefix `acme` → `AcmeModel.java`)
 - Never expose this interface as a Spring bean — it is a pure Java constant holder
 
+## Modelling Reference
+
+Apply these patterns inside the `<types>` / `<aspects>` of the content model when the
+requirements call for them.
+
+### Constraints (LIST / REGEX / LENGTH / MINMAX / custom)
+
+Declare reusable constraints under `<constraints>` (sibling of `<types>`), then reference them
+from a property with `<constraints><constraint ref="{prefix}:..."/></constraints>`.
+
+```xml
+<constraints>
+    <constraint name="{prefix}:statusList" type="LIST">
+        <parameter name="allowedValues">
+            <list><value>Draft</value><value>Approved</value><value>Rejected</value></list>
+        </parameter>
+        <parameter name="caseSensitive"><value>true</value></parameter>
+    </constraint>
+
+    <constraint name="{prefix}:codePattern" type="REGEX">
+        <parameter name="expression"><value>[A-Z]{2}-\d{4}</value></parameter>
+        <parameter name="requiresMatch"><value>true</value></parameter>
+    </constraint>
+
+    <constraint name="{prefix}:shortText" type="LENGTH">
+        <parameter name="minLength"><value>1</value></parameter>
+        <parameter name="maxLength"><value>255</value></parameter>
+    </constraint>
+
+    <constraint name="{prefix}:scoreRange" type="MINMAX">
+        <parameter name="minValue"><value>0</value></parameter>
+        <parameter name="maxValue"><value>100</value></parameter>
+    </constraint>
+
+    <!-- Custom constraint: type is a fully-qualified class extending AbstractConstraint -->
+    <constraint name="{prefix}:custom" type="{package}.model.constraint.{Name}Constraint"/>
+</constraints>
+```
+
+A custom constraint class:
+`{platform-project-root}/src/main/java/{package}/model/constraint/{Name}Constraint.java`
+
+```java
+package {package}.model.constraint;
+
+import org.alfresco.repo.dictionary.constraint.AbstractConstraint;
+
+public class {Name}Constraint extends AbstractConstraint {
+    @Override
+    protected void evaluateSingleValue(Object value) {
+        // throw ConstraintException(...) when value is invalid
+    }
+}
+```
+
+- Use built-in `LIST`/`REGEX`/`LENGTH`/`MINMAX` before writing a custom constraint.
+- A custom constraint `type` is the fully-qualified class name; the class extends
+  `org.alfresco.repo.dictionary.constraint.AbstractConstraint`.
+
+### Mandatory aspects
+
+Force an aspect onto every instance of a type:
+
+```xml
+<type name="{prefix}:document">
+    <parent>cm:content</parent>
+    <mandatory-aspects>
+        <aspect>{prefix}:auditable</aspect>
+    </mandatory-aspects>
+</type>
+```
+
+### Property indexing & tokenisation
+
+Control how a property is indexed for search. `tokenised="false"` is required for exact-match
+and sorting and pairs with the `=` AFTS prefix used by `/web-scripts` and `/behaviours`.
+
+```xml
+<property name="{prefix}:code">
+    <type>d:text</type>
+    <index enabled="true">
+        <atomic>true</atomic>
+        <stored>false</stored>
+        <tokenised>false</tokenised>   <!-- false = exact match/sort; true = full-text; both = both -->
+    </index>
+</property>
+```
+
+### Associations: child vs peer
+
+- **Child association** (`<child-association>`) — composition; deleting the parent cascades to
+  children. Use for "owns / contains".
+- **Peer association** (`<association>`) — a non-owning reference between independent nodes.
+
+```xml
+<associations>
+    <child-association name="{prefix}:attachments">
+        <source><mandatory>false</mandatory><many>true</many></source>
+        <target><class>cm:content</class><mandatory>false</mandatory><many>true</many></target>
+    </child-association>
+
+    <association name="{prefix}:relatedTo">
+        <source><mandatory>false</mandatory><many>true</many></source>
+        <target><class>{prefix}:document</class><mandatory>false</mandatory><many>true</many></target>
+    </association>
+</associations>
+```
+
+### Multi-valued, default values & encryption
+
+```xml
+<property name="{prefix}:tags">
+    <type>d:text</type>
+    <multiple>true</multiple>            <!-- multi-valued -->
+</property>
+<property name="{prefix}:status">
+    <type>d:text</type>
+    <default>Draft</default>             <!-- default value applied on creation -->
+    <constraints><constraint ref="{prefix}:statusList"/></constraints>
+</property>
+<property name="{prefix}:ssn">
+    <type>d:encrypted</type>             <!-- transparently encrypted at rest -->
+</property>
+```
+
 ## Conventions
 - `{module-id}` is the Platform JAR **artifactId** exactly as declared in `module.properties` under `module.id` minus the `{groupId}.` prefix — i.e. the bare artifact ID (e.g. `content-types`, not `com.someco.content-types`). Read it from `<artifactId>` in the platform `pom.xml`, or derive it as `{platform-artifactId}` from Section 2 of `REQUIREMENTS.md`. **Never use the full `module.id` property value as the directory name.**
 - `{platform-project-root}` is `.` for Platform JAR only mode, or `{name}-platform/` for Mixed mode

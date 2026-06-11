@@ -459,6 +459,54 @@ Register in the BPMN:
 
 ---
 
+## Advanced BPMN Constructs
+
+Generate these only when the requirements call for them.
+
+### Execution & task listeners
+- **Task listeners** fire on a *task* lifecycle event (`create`, `assignment`, `complete`) —
+  attach to a `<userTask>`:
+  ```xml
+  <activiti:taskListener event="complete" class="{package}.workflow.{Name}TaskListener"/>
+  ```
+- **Execution listeners** fire on a *process/flow* event (`start`, `end`, or a transition `take`)
+  — attach to the process, an activity, or a sequence flow, implementing
+  `org.activiti.engine.delegate.ExecutionListener`:
+  ```xml
+  <extensionElements>
+      <activiti:executionListener event="start" class="{package}.workflow.{Name}ExecutionListener"/>
+  </extensionElements>
+  ```
+  The execution listener class follows the same `ServiceRegistry`-from-`Context` pattern as the
+  task listener above (no `@Autowired`).
+
+### Message & signal events
+Coordinate between processes or wait for an external trigger.
+- **Message** = targeted 1:1 (delivered to one waiting execution); **signal** = broadcast 1:many.
+```xml
+<intermediateCatchEvent id="waitForApproval">
+    <messageEventDefinition messageRef="approvalReceived"/>
+</intermediateCatchEvent>
+```
+Trigger from Java via `RuntimeService.messageEventReceived(...)` (message) or
+`signalEventReceived(...)` (signal). Declare `<message>` / `<signal>` at the `<definitions>` root.
+
+### Escalation / boundary timers
+Attach a non-interrupting boundary timer to a user task to drive an escalation path without
+cancelling the task:
+```xml
+<boundaryEvent id="escalate" attachedToRef="reviewTask" cancelActivity="false">
+    <timerEventDefinition>
+        <timeDuration>PT48H</timeDuration>   <!-- ISO 8601 duration -->
+    </timerEventDefinition>
+</boundaryEvent>
+```
+- Use `cancelActivity="false"` for escalation (the original task stays open);
+  `cancelActivity="true"` to time out and cancel the task.
+- Timer values are ISO 8601: `<timeDuration>` (e.g. `PT48H`), `<timeDate>`, or `<timeCycle>`.
+
+---
+
 ## Conventions
 
 | Item | Rule |

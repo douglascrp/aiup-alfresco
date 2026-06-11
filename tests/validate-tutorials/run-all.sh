@@ -4,14 +4,16 @@
 # Usage:
 #   run-all.sh
 #
-# Scenarios with empty generated/ directories are reported as SKIP (not FAIL).
-# Exit code: 0 if all non-skipped scenarios pass, 1 if any fail.
+# Each scenario is validated against its committed fixture
+# (scenarios/<scenario>/fixture/) — fully offline, no sibling repo, no generated/
+# directory, no claude/network/Docker. A scenario with a missing/empty fixture is
+# reported as SKIP (not FAIL). Exit code: 0 if all non-skipped scenarios pass, 1 if any fail.
 
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-SCENARIOS="maven-sdk-baseline content-types actions behaviours web-scripts workflows scheduled-jobs bootstrap-loader rule-conditions repository-patch transforms aca-extension"
+SCENARIOS="maven-sdk-baseline content-types actions behaviours web-scripts rest-api workflows scheduled-jobs bootstrap-loader rule-conditions permissions audit repository-patch transforms content-store metadata-extractor subsystem events share-config surf aikau aca-extension"
 
 PASS=0
 FAIL=0

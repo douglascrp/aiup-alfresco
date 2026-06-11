@@ -1,5 +1,11 @@
 # Populating generated/ for validate-tutorials
 
+> **You usually don't need this.** `./run-all.sh` validates the committed
+> `scenarios/<scenario>/fixture/` trees fully offline (no `claude`, no network, no sibling
+> repo). This document covers the **optional live-generation** path: regenerating artefacts
+> from the actual slash commands via `claude -p` to confirm the generators still produce
+> conformant output.
+
 The harness ships with a fully automated script that generates all scenario artefacts
 using `claude -p` (non-interactive mode) and then validates them.
 
@@ -52,7 +58,8 @@ TOTAL                          PASS:12  FAIL:0  SKIP:0
 
 ```bash
 ./generate-all.sh content-types
-./run-scenario.sh content-types
+# Validate the freshly generated output (not the committed fixture):
+./run-scenario.sh content-types generated/content-types
 ```
 
 ---

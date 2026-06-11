@@ -14,7 +14,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-SCENARIOS="in-process out-of-process transforms aca-extension"
+SCENARIOS="in-process rest-api audit out-of-process transforms aca-extension"
 NO_TEARDOWN="${1:-}"
 
 PASS=0

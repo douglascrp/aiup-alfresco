@@ -1,0 +1,8 @@
+<webscript>
+  <shortname>Document Summary</shortname>
+  <description>Aikau document summary page</description>
+  <url>/page/document-summary</url>
+  <family>Share</family>
+  <authentication>user</authentication>
+  <transaction>none</transaction>
+</webscript>

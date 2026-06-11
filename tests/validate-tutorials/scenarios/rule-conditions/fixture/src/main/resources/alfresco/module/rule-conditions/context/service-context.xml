@@ -1,0 +1,5 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="sc.hasWebableAspectCondition" class="com.someco.action.condition.HasWebableAspectCondition" parent="action-condition-evaluator">
+    <property name="nodeService" ref="NodeService"/>
+  </bean>
+</beans>

@@ -38,6 +38,25 @@ Validate the given Alfresco content model XML against these rules:
     aspects), where the property must be supplied at node creation time via the REST API and
     is never set programmatically after the fact.
 
+## Constraint Validation
+- Each `<constraint>` must declare a `name` (`{prefix}:{camelCaseConstraintName}`) and a `type`.
+- For built-in constraint types, verify the required parameters are present:
+  - `LIST` — must have an `allowedValues` `<list>` parameter with at least one `<value>`.
+  - `REGEX` — must have an `expression` parameter; a `requiresMatch` parameter is recommended.
+  - `LENGTH` — must have `minLength` and/or `maxLength` parameters.
+  - `MINMAX` — must have `minValue` and/or `maxValue` parameters.
+- For a **custom** constraint, `type` is a fully-qualified class name; it should resolve to a
+  class extending `org.alfresco.repo.dictionary.constraint.AbstractConstraint`. Flag a `type`
+  that is neither a built-in keyword (`LIST`, `REGEX`, `LENGTH`, `MINMAX`) nor a resolvable class.
+- A property `<constraints><constraint ref="{prefix}:..."/></constraints>` reference must point
+  at a constraint defined in the same model (or an imported one).
+
+## Association Validation
+- `<child-association>` and `<association>` must declare a `name` (`{prefix}:...`) and a
+  `<source>`/`<target>` with a `<class>`; cardinality is expressed via `<mandatory>` and `<many>`.
+- Prefer `<child-association>` for composition (cascade delete) and `<association>` for peer
+  references — flag a child association used where a non-owning reference is intended.
+
 ## Spring Context Validation
 - If a companion `*-context.xml` exists, verify it registers the model via `<bean class="org.alfresco.repo.dictionary.DictionaryBootstrap">` or equivalent
 - The `models` property must reference the correct model XML path

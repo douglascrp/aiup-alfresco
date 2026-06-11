@@ -5,31 +5,42 @@ artefacts for each tutorial scenario.
 
 ## How it works
 
-1. Each `scenarios/<scenario>/REQUIREMENTS.md` describes the extension to generate.
-2. `generate-all.sh` generates all scenarios automatically using `claude -p`.
-3. `run-all.sh` checks all populated scenarios; empty directories are reported as SKIP.
+Each scenario has two parts:
 
-## Automated generation
+1. `scenarios/<scenario>/REQUIREMENTS.md` — describes the extension (also the input to
+   live generation via `generate-all.sh`).
+2. `scenarios/<scenario>/fixture/` — a small, committed, known-good artefact tree.
+3. `checks/<scenario>.sh` — asserts the structural rules against a project directory.
+
+`run-scenario.sh`/`run-all.sh` validate the **committed fixtures** by default, so the suite
+runs **fully offline**: no sibling repository, no pre-populated `generated/` directory, no
+`claude` CLI, no network, no Docker — just `bash`, `xmllint`, and `grep`.
+
+`generate-all.sh` is the separate, optional **live-generation** tester: it runs the actual
+slash commands via `claude -p` into `generated/<scenario>/` (requires the `claude` CLI), which
+you can then validate by pointing `run-scenario.sh` at that directory.
+
+## Running checks (offline, default)
 
 ```bash
-# Generate all 12 scenarios and check them:
-./generate-all.sh && ./run-all.sh
-
-# Generate and check a single scenario:
-./generate-all.sh content-types && ./run-scenario.sh content-types
-```
-
-## Running checks only
-
-```bash
-# All scenarios:
+# All scenarios (against committed fixtures):
 ./run-all.sh
 
 # Single scenario:
 ./run-scenario.sh content-types
 
-# Custom generated directory:
+# Validate a real generated/other project instead of the fixture:
 ./run-scenario.sh content-types /path/to/my/generated/project
+```
+
+## Live generation (optional, requires claude CLI)
+
+```bash
+# Generate all scenarios into generated/ using claude -p:
+./generate-all.sh
+
+# Generate a single scenario, then validate the generated output:
+./generate-all.sh content-types && ./run-scenario.sh content-types generated/content-types
 ```
 
 ## What is checked

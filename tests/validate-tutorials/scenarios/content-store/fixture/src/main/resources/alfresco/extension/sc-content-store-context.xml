@@ -1,0 +1,5 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="fileContentStore" class="com.someco.content.TieredContentStore">
+    <property name="rootLocation" value="${dir.contentstore.sc:${dir.contentstore}}"/>
+  </bean>
+</beans>

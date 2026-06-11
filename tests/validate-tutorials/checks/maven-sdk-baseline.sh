@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: maven-sdk-baseline
-# Usage: maven-sdk-baseline.sh <generated-dir> <reference-dir>
+# Usage: maven-sdk-baseline.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

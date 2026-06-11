@@ -1,0 +1,10 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="sc.rendition.markdownPreview" class="org.alfresco.repo.rendition2.RenditionDefinition2Impl">
+    <constructor-arg name="renditionName" value="markdownPreview"/>
+    <constructor-arg name="targetMimetype" value="text/html"/>
+    <constructor-arg name="transformOptions">
+      <map><entry key="timeout" value="${system.thumbnail.definition.default.timeoutMs}"/></map>
+    </constructor-arg>
+    <constructor-arg name="registry" ref="renditionDefinitionRegistry2"/>
+  </bean>
+</beans>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<permissions>
+  <permissionSet type="sc:controlledDoc" expose="selected">
+    <permissionGroup name="Publisher" requiresType="true" expose="true">
+      <includePermissionGroup permissionGroup="Read" type="cm:cmobject"/>
+    </permissionGroup>
+    <permission name="Publish" expose="true" requiresType="false">
+      <grantedToGroup permissionGroup="PublishGroup"/>
+    </permission>
+    <permissionGroup name="PublishGroup" requiresType="true" expose="false"/>
+  </permissionSet>
+</permissions>

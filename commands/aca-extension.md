@@ -1,6 +1,6 @@
 ---
 description: "Scaffold a full ACA/ADW UI extension: plugin.json descriptor, provideExtension() providers function, NgRx actions and effects, Angular standalone components for the requested extension points (page, sidebar, context menu, toolbar), HTTP service, and integration patch instructions for extensions.module.ts, project.json, and app.config.json."
-allowed-tools: "Read, Write, Grep, Glob"
+allowed-tools: "Read, Write, Grep, Glob, Bash"
 argument-hint: "[path to REQUIREMENTS.md or description]"
 ---
 
@@ -12,6 +12,10 @@ argument-hint: "[path to REQUIREMENTS.md or description]"
 > checkout and compiled as part of that application's build.
 >
 > Reference implementation: `https://github.com/aborroy/alfresco-content-lake-ui`
+>
+> Verified against a fresh `Alfresco/alfresco-content-app` checkout at ACA 7.5.0
+> (Angular 19, ADF 8.6). Prefer the ACA 7.x patterns below over older
+> `ExtensionService`/`APP_INITIALIZER` examples.
 
 ## Input
 
@@ -41,7 +45,7 @@ Read `REQUIREMENTS.md` to identify UI extension requirements:
 ## Output Files
 
 > **All files below are required and must be generated together in a single run.**
-> After generation, apply the three integration patches described at the end of this spec.
+> After generation, apply the integration patches described at the end of this spec.
 
 ### Directory structure
 
@@ -170,37 +174,31 @@ correspond to requested extension points.
 `{ext-name}/src/{ext-name}.module.ts`
 
 ```typescript
-import { APP_INITIALIZER, EnvironmentProviders, NgModule, Provider } from '@angular/core';
+import { EnvironmentProviders, NgModule, Provider } from '@angular/core';
 import { HTTP_INTERCEPTORS } from '@angular/common/http';
-import { ExtensionService, provideExtensionConfig } from '@alfresco/adf-extensions';
+import { provideExtensionConfig, provideExtensions } from '@alfresco/adf-extensions';
 import { provideEffects } from '@ngrx/effects';
 
 import { {ExtName}Effects } from './lib/store/{ext-name}.effects';
 // Import only the components that correspond to requested extension points:
 import { {PageName}Component } from './lib/components/{page-name}/{page-name}.component';
 import { {SidebarName}Component } from './lib/components/{sidebar-name}/{sidebar-name}.component';
-
-export function register{ExtName}Components(extensions: ExtensionService): () => void {
-  return () => {
-    extensions.setComponents({
-      '{extPrefix}.page':    {PageName}Component,     // if page requested
-      '{extPrefix}.sidebar': {SidebarName}Component   // if sidebar requested
-    });
-    // Add custom evaluators here if needed:
-    // extensions.setEvaluators({ ... });
-  };
-}
+import * as rules from './lib/rules/{ext-name}.rules';
 
 export function provide{ExtName}Extension(): (Provider | EnvironmentProviders)[] {
   return [
     provideExtensionConfig(['{ext-name}.plugin.json']),
     provideEffects({ExtName}Effects),
-    {
-      provide: APP_INITIALIZER,
-      useFactory: register{ExtName}Components,
-      deps: [ExtensionService],
-      multi: true
-    }
+    provideExtensions({
+      components: {
+        '{extPrefix}.page': {PageName}Component,       // if page requested
+        '{extPrefix}.sidebar': {SidebarName}Component  // if sidebar requested
+      },
+      evaluators: {
+        // Add only synchronous evaluators here, e.g.
+        // '{extPrefix}.canRunAction': rules.canRunAction
+      }
+    })
   ];
 }
 
@@ -212,11 +210,14 @@ export class {ExtName}Module {}
 Key rules:
 - Export both `provide{ExtName}Extension()` and the deprecated `@NgModule` for compatibility.
 - Do **not** import components in `@NgModule` `imports` — they are standalone.
-- Register components with `ExtensionService.setComponents()` via `APP_INITIALIZER`.
+- Register components and evaluators with `provideExtensions({ components, evaluators })`.
 - Use `provideExtensionConfig(['{ext-name}.plugin.json'])` to load the manifest.
 - Register NgRx effects via `provideEffects({ExtName}Effects)`.
 - Add an HTTP interceptor provider only if the extension calls non-Alfresco backends
   that require custom authentication headers.
+- Do not use `ExtensionService.injector`; it is not available in ACA 7.5.
+- ADF rule evaluators must return `boolean`, not `Observable<boolean>`. Do not perform
+  asynchronous permission checks inside extension visibility rules.
 
 ---
 
@@ -273,10 +274,19 @@ export class {ExtName}Effects {
 }
 ```
 
+Key rules:
+- Use the action payload directly when the plugin manifest supplies
+  `"payload": "$(context.selection.first.entry)"`.
+- Do not add `withLatestFrom(this.store.select(getAppSelection))` unless the selected
+  state is actually read. ACA 7.5 builds with strict TypeScript settings, so unused
+  variables such as `selection` fail the build.
+
 ---
 
 ### 5. HTTP Service
 `{ext-name}/src/lib/services/{service-name}.service.ts`
+
+Use this `HttpClient` pattern only for non-Alfresco/custom backend services:
 
 ```typescript
 import { Injectable } from '@angular/core';
@@ -312,6 +322,52 @@ Key rules:
 - Always read backend URLs from `AppConfigService` — never hardcode paths.
 - Use `plugins.{extPrefix}Service.baseUrl` as the config key.
 - Keep methods typed with interfaces from `{ext-name}.models.ts`.
+
+For standard Alfresco REST APIs, prefer the authenticated ADF content-services API
+instead of importing `AlfrescoApiService` from `@alfresco/adf-core`:
+
+```typescript
+import { Injectable } from '@angular/core';
+import { AlfrescoApiService } from '@alfresco/adf-content-services';
+import { AuthenticationService } from '@alfresco/adf-core';
+import { LazyApi, NodesApi, VersionsApi } from '@alfresco/js-api';
+import { Observable, from } from 'rxjs';
+
+@Injectable({ providedIn: 'root' })
+export class {ServiceName}Service {
+  constructor(
+    private alfrescoApiService: AlfrescoApiService,
+    private authenticationService: AuthenticationService
+  ) {}
+
+  @LazyApi((self: {ServiceName}Service) => new NodesApi(self.alfrescoApiService.getInstance()))
+  declare nodesApi: NodesApi;
+
+  @LazyApi((self: {ServiceName}Service) => new VersionsApi(self.alfrescoApiService.getInstance()))
+  declare versionsApi: VersionsApi;
+
+  deleteVersion(nodeId: string, versionId: string): Observable<void> {
+    return from(this.versionsApi.deleteVersion(nodeId, versionId));
+  }
+
+  updateOwnerToCurrentUser(nodeId: string): Observable<any> {
+    const currentUser = this.authenticationService.getUsername();
+
+    return from(
+      this.nodesApi.updateNode(nodeId, {
+        properties: {
+          'cm:owner': currentUser
+        }
+      })
+    );
+  }
+}
+```
+
+`AlfrescoApiService` is not exported from `@alfresco/adf-core` in ACA 7.5; importing it
+from there causes a build failure.
+Use `AuthenticationService.getUsername()` when the current user name is required.
+`getEcmUsername()` is not available in ACA 7.5 / ADF 8.6.
 
 ---
 
@@ -428,7 +484,7 @@ export * from './lib/models/{ext-name}.models';
 
 ## Integration Patches (apply after generation)
 
-These three changes must be made to the ACA or ADW source checkout. They cannot be generated
+These changes must be made to the ACA or ADW source checkout. They cannot be generated
 in this repository — they patch files inside the host application.
 
 ### Patch 1 — Register the extension in `extensions.module.ts`
@@ -469,7 +525,113 @@ Add to `app.targets.build.options.assets` in `app/project.json`.
 }
 ```
 
-Add to `app/src/app.config.json` (or `app/src/app.config.json`).
+Add to `app/src/app.config.json` or the app config template used by the checkout.
+
+Skip this patch for extensions that only use standard Alfresco REST APIs through
+`@alfresco/adf-content-services`; those calls use the existing ACA authentication and proxy.
+
+### Patch 4 — Add i18n translations when the plugin references translation keys
+
+For ACA 7.x, the app translation bundle is typically:
+
+```text
+projects/aca-content/assets/i18n/en.json
+```
+
+Do not assume `app/src/assets/i18n/en.json` exists. Merge keys into the existing JSON
+structure used by the plugin manifest and components. For example, if plugin JSON uses
+`"title": "APP.ACTIONS.DELETE_VERSION"`, the label must be merged under:
+
+```json
+{
+  "APP": {
+    "ACTIONS": {
+      "DELETE_VERSION": "Delete Version"
+    }
+  }
+}
+```
+
+The ACA build already copies `projects/aca-content/assets` into `dist/content-ce/assets`.
+After build, verify translated keys exist in `dist/content-ce/assets/i18n/en.json`.
+
+---
+
+## Completion Gate
+
+The `/aca-extension` command is **not done** until the generated extension compiles inside
+the target ACA/ADW checkout.
+
+Required validation flow:
+
+1. Copy the generated `{ext-name}/` folder into the host app (`projects/{ext-name}/` for ACA,
+   `libs/{ext-name}/` for ADW, unless the checkout uses a different established convention).
+2. Apply all required integration patches:
+   - provider registration in `extensions.module.ts`
+   - plugin asset entry in `project.json`
+   - i18n keys when the plugin or components reference translation keys
+   - app config entries only when custom backend URLs are needed
+3. Install dependencies if the checkout has no `node_modules`:
+   ```bash
+   npm install
+   ```
+4. Run the host application build:
+   ```bash
+   npm run build
+   ```
+5. Do not report the extension as complete unless `npm run build` exits successfully.
+6. After a successful build, verify generated assets:
+   ```bash
+   ls dist/content-ce/assets/plugins/{ext-name}.plugin.json
+   grep "{TRANSLATION_ROOT_KEY}" dist/content-ce/assets/i18n/en.json
+   ```
+
+If no host ACA/ADW checkout path is available, stop and ask for it. In that case report the
+extension source as generated only, not complete. If the build fails, fix generated source
+or integration patches and rerun `npm run build`; do not treat expected upstream warnings
+as failures unless they cause a non-zero exit code.
+
+---
+
+## ACA 7.5 Findings From a Fresh Checkout
+
+These are concrete errors found when integrating a generated version-delete extension into
+a fresh ACA 7.5.0 checkout:
+
+- `app/src/assets/i18n/en.json` did not exist. The active English bundle was
+  `projects/aca-content/assets/i18n/en.json`.
+- `AlfrescoApiService` imported from `@alfresco/adf-core` failed to build. Use
+  `@alfresco/adf-content-services`.
+- `AuthenticationService.getEcmUsername()` failed to build in ACA 7.5 / ADF 8.6. Use
+  `AuthenticationService.getUsername()`.
+- `SnackbarErrorAction` and `SnackbarInfoAction` were not exported from
+  `@alfresco/aca-shared/store`. Use `NotificationService` from `@alfresco/adf-core`
+  (`showError`, `showInfo`) inside effects.
+- Effects that call `withLatestFrom(this.store.select(getAppSelection))` but do not use
+  the `selection` value fail strict TypeScript with `TS6133`. Only select store state
+  when it is actually consumed.
+- `ExtensionService.injector` did not exist. Use `provideExtensions(...)` registration
+  instead of resolving services from `ExtensionService`.
+- Custom evaluators returning `Observable<boolean>` failed because `RuleEvaluator` expects
+  a synchronous `boolean`.
+- Top-level plugin rule objects without `"parameters": []` failed at runtime with
+  `TypeError: ruleRef.parameters is not iterable`.
+- The standard `SelectionState` has `first`, `file`, `folder`, `nodes`, etc. It does not
+  declare arbitrary fields such as `versionId`. If a plugin action needs custom payload
+  fields, type the action payload explicitly and verify the plugin extension point actually
+  supplies them.
+- `npm install` completed but reported upstream dependency warnings and vulnerabilities.
+  Do not treat these as extension integration failures unless the user asks for dependency
+  remediation.
+- `npm run build` passed after the compatibility fixes. Expected upstream warnings included
+  Browserlist ES5 target warnings, Sass mixed-declaration deprecation warnings, and a pdfjs
+  dynamic dependency warning.
+- `npm start` may fail inside a sandbox with `listen EPERM: operation not permitted ::1:4200`.
+  Rerun with permission to bind localhost, or verify with `npm run build` if a dev server is
+  not required.
+- After a successful build, verify:
+  - `dist/content-ce/assets/plugins/{ext-name}.plugin.json` exists.
+  - Required translation keys exist in `dist/content-ce/assets/i18n/en.json`.
 
 ---
 
@@ -478,6 +640,8 @@ Add to `app/src/app.config.json` (or `app/src/app.config.json`).
   `libs/` in ADW (Nx workspace).
 - Plugin manifest IDs: `{extPrefix}.{element}` — dot-separated, no spaces.
 - Action type constants: `{EXT_PREFIX}_{ACTION_NAME}` — UPPER_SNAKE_CASE.
+- Every top-level plugin `rules` entry must include `"parameters": []` when it has no
+  parameters. ACA 7.5 spreads `ruleRef.parameters`.
 - All Angular components: `standalone: true` — no `NgModule` declarations.
 - Backend URLs: always read from `AppConfigService` using `plugins.{extPrefix}Service.baseUrl`.
 - Authentication to Alfresco REST APIs is handled automatically by ADF's built-in HTTP

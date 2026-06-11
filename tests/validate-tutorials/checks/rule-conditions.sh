@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: rule-conditions
-# Usage: rule-conditions.sh <generated-dir> <reference-dir>
+# Usage: rule-conditions.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

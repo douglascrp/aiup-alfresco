@@ -15,6 +15,11 @@ argument-hint: "[path to REQUIREMENTS.md or description]"
 > ImageMagick, LibreOffice, PDFRenderer, and Tika. Only scaffold a custom engine when the
 > required source→target mimetype pair is not covered by those engines.
 
+> **Transform vs metadata extraction.** This command converts content into *other content*
+> (renditions, thumbnails, format conversions). To populate node *properties* from a file's
+> content (content → metadata), use `/metadata-extractor` instead — that is a separate
+> In-Process ACS subsystem (`AbstractMappingMetadataExtracter`), not a transform.
+
 ## Built-in transforms (alfresco-transform-core-aio 5.4.0)
 
 | Engine | Common source formats | Common target formats |
@@ -400,6 +405,41 @@ registers with the router — not directly with ACS.
 ```
 
 Where `{ENGINE_UPPER}` is the engine name in UPPER_CASE (e.g. `MARKDOWN`).
+
+---
+
+### Pipeline Transforms (chaining existing engines)
+
+When the required conversion can be achieved by **chaining transforms that already exist**
+(e.g. `X → application/pdf → image/png`), do **not** write a monolithic custom transformer.
+Declare a **pipeline** in an engine's `engine_config.json` that references the intermediate
+mimetype and the existing transformer names:
+
+```json
+{
+  "transformers": [
+    {
+      "transformerName": "{engineName}Pipeline",
+      "transformerPipeline": [
+        { "transformerName": "Tika",        "targetMediaType": "text/plain" },
+        { "transformerName": "{engineName}" }
+      ],
+      "supportedSourceAndTargetList": [
+        { "sourceMediaType": "{sourceMimetype}", "targetMediaType": "{targetMimetype}" }
+      ],
+      "transformOptions": [ "{engineName}Options" ]
+    }
+  ]
+}
+```
+
+Key rules for pipelines:
+- Each pipeline step names an **existing** transformer and the intermediate `targetMediaType`
+  it produces (the final step omits `targetMediaType` — it produces the pipeline's target).
+- The pipeline's `supportedSourceAndTargetList` advertises the end-to-end source→target pair to
+  the router; the renditions you register (1a) reference that target as usual.
+- Prefer a pipeline over a new engine whenever the intermediate formats are already covered by
+  `alfresco-transform-core-aio` — it adds no new container and reuses proven transformers.
 
 ---
 
