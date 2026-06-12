@@ -16,7 +16,7 @@ Claude adds a slash-command UI on top of those files. Other agents can use the s
 | Topic | Details |
 |-------|---------|
 | Rules | [`.cursor/rules/aiup-alfresco.mdc`](./.cursor/rules/aiup-alfresco.mdc) applies AIUP context (`alwaysApply: true`); full conventions remain in [`AGENTS.md`](./AGENTS.md). |
-| Skills | [`.cursor/skills/`](./.cursor/skills/) — 30 Cursor-native skills (19 command slash skills, validators, agents, `aiup-alfresco` orchestrator). Regenerate with `./scripts/build-cursor-skills.sh`; consumer repos use `install-cursor-pack.sh`. |
+| Skills | [`.cursor/skills/`](./.cursor/skills/) — command slash skills (one per `commands/*.md`), validators, agents, and `aiup-alfresco` orchestrator. Regenerate with `./scripts/build-cursor-skills.sh`; consumer repos use `install-cursor-pack.sh`. |
 | Renderer | `./scripts/aiup-command.sh render --agent cursor <command> [args…]` — same output shape as `generic`, with a preamble tuned for Cursor (`@` file references). |
 | Hooks | [`.cursor/hooks.json`](./.cursor/hooks.json) registers Cursor-native hooks (see [`CURSOR.md`](./CURSOR.md)); they are separate from Claude’s [`hooks/hooks.json`](./hooks/hooks.json). |
 | Slash commands | Cursor 2.4+ — type `/requirements`, `/scaffold`, etc. in Agent chat (skills with `disable-model-invocation: true`). In consumer repos, run `./tools/aiup-alfresco/scripts/install-cursor-pack.sh` first. |

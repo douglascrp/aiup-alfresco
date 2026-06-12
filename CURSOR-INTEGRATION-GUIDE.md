@@ -144,7 +144,7 @@ chmod +x scripts/aiup/*.sh
 project-repo/
 ├── .cursor/
 │   ├── rules/aiup-alfresco.mdc      # regra do projeto
-│   ├── skills/                       # 30 skills (19 slash commands + validadores + agentes)
+│   ├── skills/                       # slash commands + validadores + agentes (gerados por install-cursor-pack.sh)
 │   ├── hooks.json                    # automação opcional
 │   └── hooks/*.sh
 ├── tools/
@@ -206,7 +206,7 @@ Após `install-cursor-pack.sh`, no chat do Cursor (modo **Agent**), digite:
 /content-model
 ```
 
-O autocomplete lista os 19 comandos AIUP. Cada skill aponta para `tools/aiup-alfresco/commands/<name>.md`.
+O autocomplete lista todos os comandos AIUP (`/requirements`, `/scaffold`, `/rest-api`, …). Cada skill aponta para `tools/aiup-alfresco/commands/<name>.md`.
 
 ### 3.6 Versionar no Git
 
@@ -253,7 +253,7 @@ cd /caminho/para/project-repo
 ./tools/aiup-alfresco/scripts/aiup-command.sh list
 ```
 
-Deve listar 19 comandos (`requirements`, `scaffold`, `content-model`, …).
+Deve listar todos os comandos (`requirements`, `scaffold`, `content-model`, `rest-api`, `permissions`, `audit`, …).
 
 ### 5.2 Teste 2 — renderizar prompt Cursor
 
@@ -381,7 +381,7 @@ Sempre rode `install-cursor-pack.sh` para sincronizar slash commands e o orquest
 [ ] install-cursor-pack.sh executado na raiz do projeto Alfresco
 [ ] Regra de versões local criada (.cursor/rules/<projeto>-alfresco-versions.mdc)
 [ ] Projeto aberto no Cursor pela pasta raiz
-[ ] aiup-command.sh list retorna 19 comandos
+[ ] aiup-command.sh list retorna todos os comandos AIUP
 [ ] /scaffold ou /requirements aparece no autocomplete do Agent
 [ ] Teste no Agent com @AGENTS.md e content-model.xml funcionou
 [ ] Alterações commitadas no Git (.cursor/, submodule, regra de versões)

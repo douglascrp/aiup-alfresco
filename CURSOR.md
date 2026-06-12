@@ -14,7 +14,7 @@ This repository is a [Claude Code](https://claude.com/claude-code) plugin **and*
 | Artifact | Role |
 |----------|------|
 | [`.cursor/rules/aiup-alfresco.mdc`](./.cursor/rules/aiup-alfresco.mdc) | Tells the agent to follow [`AGENTS.md`](./AGENTS.md) and treat `commands/` and `.cursor/skills/` as the AIUP workflow. Enabled with `alwaysApply: true`. |
-| [`.cursor/skills/`](./.cursor/skills/) | **30 Cursor-native skills**: 19 command slash skills, 7 validators, 3 agent guides, and **`aiup-alfresco`** orchestrator. Regenerate: `./scripts/build-cursor-skills.sh`. |
+| [`.cursor/skills/`](./.cursor/skills/) | Cursor-native skills: one slash skill per `commands/*.md`, validator/agent skills, and **`aiup-alfresco`** orchestrator. Regenerate after upstream merges: `./scripts/build-cursor-skills.sh`. |
 | [`AGENTS.md`](./AGENTS.md) | Full Alfresco / SDK conventions (versions, layout, forbidden patterns, tests). |
 | [`commands/*.md`](./commands/) | Portable specifications for each AIUP step (`requirements`, `scaffold`, `content-model`, …). |
 
@@ -101,6 +101,9 @@ Cursor discovers skills under [`.cursor/skills/`](./.cursor/skills/). Key entrie
 |-------|----------|
 | `aiup-alfresco` | User wants an AIUP workflow step without naming a command file |
 | `content-model-validator` | Editing `*-model*.xml` or `*-context.xml` |
+| `permission-model-validator` | Editing `*-permissionDefinitions.xml` |
+| `audit-config-validator` | Editing `*-audit.xml` or audit Spring context |
+| `rest-api-validator` | Editing v1 Public REST API resource classes |
 | `alfresco-architect-agent` | Designing extension architecture from requirements |
 | `alfresco-debugger-agent` | Diagnosing Maven / ACS stack traces |
 | `alfresco-migrator-agent` | Migrating legacy AMPs or deprecated APIs |

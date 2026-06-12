@@ -228,7 +228,7 @@ fi
     echo "1. \`/requirements\` — architecture decision + REQUIREMENTS.md"
     echo "2. \`/scaffold\` — project skeleton (requires REQUIREMENTS.md)"
     echo "3. Feature commands as needed, for example:"
-    echo "   - Platform JAR: \`/content-model\`, \`/behaviours\`, \`/web-scripts\`, \`/actions\`, \`/workflow\`, \`/scheduled-jobs\`, \`/bootstrap-loader\`, \`/rule-conditions\`, \`/repository-patch\`, \`/transforms\`"
+    echo "   - Platform JAR: \`/content-model\`, \`/behaviours\`, \`/web-scripts\`, \`/rest-api\`, \`/actions\`, \`/workflow\`, \`/scheduled-jobs\`, \`/bootstrap-loader\`, \`/rule-conditions\`, \`/repository-patch\`, \`/permissions\`, \`/audit\`, \`/content-store\`, \`/metadata-extractor\`, \`/subsystem\`, \`/transforms\`"
     echo "   - Out-of-process: \`/events\`"
     echo "   - Share JAR: \`/share-config\`, \`/surf\`, \`/aikau\`"
     echo "   - ACA/ADW: \`/aca-extension\`"
