@@ -4,8 +4,8 @@
 # Usage:
 #   generate.sh [scenario...]
 #
-# Scenarios: in-process out-of-process transforms aca-extension
-# With no arguments, generates all 4 scenarios.
+# Scenarios: in-process rest-api audit out-of-process transforms aca-extension
+# With no arguments, generates all scenarios.
 #
 # Each scenario:
 #   1. Copies its REQUIREMENTS.md into a fresh generated/ directory
@@ -22,6 +22,8 @@ AIUP_CMD="$AIUP_ROOT/scripts/aiup-command.sh"
 cmds_for() {
     case "$1" in
         in-process)      echo "scaffold content-model web-scripts docker-compose" ;;
+        rest-api)        echo "scaffold content-model rest-api docker-compose" ;;
+        audit)           echo "scaffold content-model audit docker-compose" ;;
         out-of-process)  echo "scaffold events docker-compose" ;;
         transforms)      echo "scaffold content-model transforms docker-compose" ;;
         aca-extension)   echo "aca-extension" ;;
@@ -29,7 +31,7 @@ cmds_for() {
     esac
 }
 
-ALL_SCENARIOS="in-process out-of-process transforms aca-extension"
+ALL_SCENARIOS="in-process rest-api audit out-of-process transforms aca-extension"
 TARGETS="${*:-$ALL_SCENARIOS}"
 
 run_command() {

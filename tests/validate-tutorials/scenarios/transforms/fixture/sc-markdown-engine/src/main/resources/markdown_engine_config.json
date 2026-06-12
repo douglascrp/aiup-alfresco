@@ -1,0 +1,11 @@
+{
+  "transformers": [
+    {
+      "transformerName": "markdown",
+      "supportedSourceAndTargetList": [
+        { "sourceMediaType": "text/markdown", "targetMediaType": "text/html" }
+      ],
+      "transformOptions": [ "markdownOptions" ]
+    }
+  ]
+}

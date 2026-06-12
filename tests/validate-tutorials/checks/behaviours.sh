@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: behaviours
-# Usage: behaviours.sh <generated-dir> <reference-dir>
+# Usage: behaviours.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

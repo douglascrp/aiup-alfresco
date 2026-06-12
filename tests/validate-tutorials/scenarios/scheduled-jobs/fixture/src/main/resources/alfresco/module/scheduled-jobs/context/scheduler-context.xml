@@ -1,0 +1,13 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="sc.archiverExecuter" class="com.someco.job.ContentArchiverJobExecuter"/>
+  <bean id="sc.archiverJobDetail" class="org.springframework.scheduling.quartz.JobDetailFactoryBean">
+    <property name="jobClass" value="com.someco.job.ContentArchiverJob"/>
+  </bean>
+  <bean id="sc.archiverTrigger" class="org.alfresco.util.CronTriggerBean">
+    <property name="jobDetail" ref="sc.archiverJobDetail"/>
+    <property name="scheduler" ref="schedulerFactory"/>
+    <property name="cronExpression" value="${sc.archiver.cron:0 0 0 * * ?}"/>
+    <property name="enabled" value="${sc.archiver.enabled:true}"/>
+    <property name="startDelay" value="240000"/>
+  </bean>
+</beans>

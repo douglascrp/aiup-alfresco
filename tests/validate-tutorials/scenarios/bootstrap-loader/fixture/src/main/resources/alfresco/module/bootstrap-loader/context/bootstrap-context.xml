@@ -1,0 +1,9 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="sc.foldersBootstrapLoader" parent="module.baseComponent" class="com.someco.bootstrap.FoldersBootstrapLoader">
+    <property name="moduleId" value="bootstrap-loader"/>
+    <property name="name" value="FoldersBootstrapLoader"/>
+    <property name="sinceVersion" value="1.0.0"/>
+    <property name="appliesFromVersion" value="1.0.0"/>
+    <property name="nodeLocatorService" ref="nodeLocatorService"/>
+  </bean>
+</beans>

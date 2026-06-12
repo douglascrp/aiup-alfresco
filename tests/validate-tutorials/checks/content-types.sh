@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: content-types
-# Usage: content-types.sh <generated-dir> <reference-dir>
+# Usage: content-types.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -37,6 +37,10 @@ if [[ -n "$CONTENT_MODEL" ]]; then
     assert_xml_wellformed "$CONTENT_MODEL" "content-model.xml is well-formed XML"
     assert_grep '<namespace uri=' "$CONTENT_MODEL" "content-model.xml declares a namespace"
     assert_not_grep 'enforced="true"' "$CONTENT_MODEL" "content-model.xml has no enforced=true (forbidden)"
+    # Scenario declares a LIST constraint (sc:campaignList) and a peer association (sc:relatedDocuments)
+    assert_grep 'type="LIST"' "$CONTENT_MODEL" "content-model.xml declares a LIST constraint"
+    assert_grep 'allowedValues' "$CONTENT_MODEL" "LIST constraint declares allowedValues parameter"
+    assert_grep '<association ' "$CONTENT_MODEL" "content-model.xml declares a peer association"
 fi
 
 # ---- Java model constants interface ----

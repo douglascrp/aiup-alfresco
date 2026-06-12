@@ -271,6 +271,13 @@ Example minimal descriptor:
 </webscript>
 ```
 
+### v1 Public REST API Paths
+- **Custom v1 resources**: `/alfresco/api/-default-/public/alfresco/versions/1/{entities}`
+- **Relationships**: `.../{entities}/{entityId}/{relationship}`
+- Entity collection `name` and relationship `name`: plural nouns, kebab-case; no verbs
+- This is the modern, annotation-based framework (`/rest-api`), distinct from classic
+  declarative Web Scripts (`/web-scripts`) served at `/alfresco/s/api/{prefix}/{resource}`
+
 ### Docker
 - **Service names**: lowercase, hyphenated — e.g. `alfresco`, `transform-core-aio`
 - **Volume names**: `{project}-{service}-data` — e.g. `myproject-postgres-data`
@@ -452,7 +459,23 @@ EOF
 - Always use `PermissionService` to check/set permissions — never bypass
 - Use `AccessStatus.ALLOWED` checks before operations on behalf of users
 - `AuthenticationUtil.runAsSystem` — only for bootstrap or system-level operations, never for user-facing code
-- Custom permissions: define in `permissionDefinitions.xml` if needed
+
+#### Custom permissions (`/permissions`)
+- Define custom permission groups/permissions in an **extension**
+  `alfresco/extension/{prefix}-permissionDefinitions.xml`, registered with a bean whose
+  `parent="permissionModelBootstrap"` and a `model` property pointing at that file. This **adds**
+  to the global permission model — never replace or remove core definitions.
+- **Permission group and permission names must be project-scoped (PascalCase)** — never reuse a
+  built-in name (`Read`, `Write`, `Delete`, `Consumer`, `Contributor`, `Editor`, `Collaborator`,
+  `Coordinator`, `SiteManager`, …). Compose on top of core groups with
+  `<includePermissionGroup permissionGroup="Read" type="cm:cmobject"/>` inside a custom group.
+- Bind a `<permissionSet type="{prefix}:...">` to a **custom** type or aspect. Use
+  `requiresType="true"` when a permission only makes sense on the bound type; set `expose="true"`
+  on groups/permissions that should be visible in permission-management UIs.
+- **Dynamic authorities** implement `org.alfresco.repo.security.permissions.DynamicAuthority`
+  (`hasAuthority(NodeRef, userName)`, `getAuthority()`, `requiredFor()`). Register the bean
+  (id `{prefix}.{name}DynamicAuthority`) and add it to the global `dynamicAuthorities` list.
+  `hasAuthority` must be cheap and guard with `nodeService.exists()`.
 
 ### Search Enterprise (Elasticsearch)
 - ACL fields `sys_acl` and `sys_racl` must be indexed for permission-aware search
@@ -462,6 +485,10 @@ EOF
 - **Preferred**: OAuth2 with an external identity provider (e.g. Keycloak) — use this for new production deployments
 - **Compatibility fallback**: ticket-based authentication where project constraints require it (e.g. legacy clients, systems that cannot support OAuth2)
 - Never hardcode credentials in Java code or properties files committed to VCS
+- Authentication is configured as a **subsystem chain** (`authentication.chain={instance}:{type},…`).
+  Use `/subsystem` (authentication mode) to scaffold per-instance properties for `ldap`/`ldap-ad`,
+  `identity-service` (OIDC/Keycloak/SAML), `external`, etc. See "Subsystem Model" → "Authentication
+  subsystem". Secrets (bind passwords, client secrets) come from the environment at deploy time.
 
 ---
 
@@ -506,6 +533,295 @@ environment:
 
 - Define `ACTIVEMQ_USER` and `ACTIVEMQ_PASSWORD` once in the compose file (no `.env` file)
 - Use the same values consistently across all services — mismatches cause silent connection failures
+
+---
+
+## REST API Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for custom v1 Public
+> REST API resources. This is the modern annotation-based framework
+> (`org.alfresco.rest.framework`), distinct from classic declarative Web Scripts.
+
+### Technology
+
+ACS 26.1 ships the v1 Public REST API framework. Resources are plain Spring beans annotated
+with `@EntityResource` / `@RelationshipResource` that implement the action interfaces in
+`org.alfresco.rest.framework.resource.actions.interfaces`. The framework's
+`ResourceLookupDictionary` discovers annotated beans from the application context — no parent
+bean and no descriptor XML are required.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Model POJO | `src/main/java/{package}/rest/model/{Entity}.java` |
+| Entity resource | `src/main/java/{package}/rest/{Entity}EntityResource.java` |
+| Relationship resource (optional) | `src/main/java/{package}/rest/{Entity}{Relationship}RelationshipResource.java` |
+| Spring bean registration | `src/main/resources/alfresco/module/{module-id}/context/webscript-context.xml` |
+| Unit test | `src/test/java/{package}/rest/{Entity}EntityResourceTest.java` |
+
+### Naming Conventions
+
+- **Entity model class**: `{Entity}` (PascalCase) in package `{package}.rest.model`
+- **Entity resource class**: `{Entity}EntityResource` in package `{package}.rest`
+- **Relationship resource class**: `{Entity}{Relationship}RelationshipResource`
+- **Collection name**: `@EntityResource(name = "{entities}")` — plural, kebab-case
+- **Relationship name**: `@RelationshipResource(name = "{relationship}")` — plural, kebab-case
+- **Bean ID**: `{prefix}.{entity}EntityResource`, `{prefix}.{entity}{Relationship}RelationshipResource`
+
+### Spring Registration Pattern
+
+```xml
+<bean id="{prefix}.{entity}EntityResource" class="{package}.rest.{Entity}EntityResource">
+    <property name="serviceRegistry" ref="ServiceRegistry"/>
+</bean>
+```
+
+- No parent bean — the framework discovers the annotated bean automatically.
+- Register in `webscript-context.xml`, imported from `module-context.xml` (shared with `/web-scripts`).
+
+### Java Class Pattern
+
+```java
+@EntityResource(name = "{entities}", title = "{Entity} API")
+public class {Entity}EntityResource implements
+        EntityResourceAction.Read<{Entity}>,
+        EntityResourceAction.ReadById<{Entity}> {
+
+    @Override
+    @WebApiDescription(title = "List {entities}")
+    public CollectionWithPagingInfo<{Entity}> readAll(Parameters parameters) {
+        return CollectionWithPagingInfo.asPaged(parameters.getPaging(), results, false, total);
+    }
+
+    @Override
+    @WebApiDescription(title = "Get a {Entity}")
+    public {Entity} readById(String id, Parameters parameters) { ... }
+    // setter injection only
+}
+```
+
+- Implement only the needed interfaces: `Read` (`readAll`), `ReadById`, `Create`, `Update`, `Delete`.
+- **Every** action method must carry `@WebApiDescription` — without it the method is not mapped (405).
+- Return collections as `CollectionWithPagingInfo<T>`, never a raw `List` (honours the paging envelope).
+- Annotate exactly one model getter with `@UniqueId`.
+- Throw `EntityNotFoundException` / `InvalidArgumentException` for 404 / 400 mapping.
+- Never extend `DeclarativeWebScript`, never use `@Autowired`.
+
+### Classic Web Script vs v1 REST API
+
+Use `/rest-api` (v1) for structured CRUD over an entity with paged JSON and content negotiation.
+Use `/web-scripts` (classic) for server-side HTML rendering, binary/streaming downloads, and
+multipart uploads. See "Web Script API Paths" and "v1 Public REST API Paths" above.
+
+---
+
+## Audit Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for custom audit
+> applications. Audit data is driven by audit data producers (e.g. `alfresco-access`) and
+> recorded into application-scoped storage.
+
+### Technology
+
+ACS 26.1 ships the audit framework (`org.alfresco.repo.audit`). A custom audit application is an
+XML file (audit model namespace `http://www.alfresco.org/repo/audit/model/3.2`) registered with
+the `auditModelRegistry`. Custom values are derived by `AbstractDataExtractor` beans (and
+optionally `AbstractDataGenerator` beans).
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Audit application XML | `src/main/resources/alfresco/extension/audit/{prefix}-audit.xml` |
+| Data extractor class (optional) | `src/main/java/{package}/audit/extractor/{Name}DataExtractor.java` |
+| Context registration | `src/main/resources/alfresco/module/{module-id}/context/audit-context.xml` |
+| Enable properties | `alfresco-global.properties` (`audit.enabled`, `audit.{app-key}.enabled`) |
+| Unit test (optional) | `src/test/java/{package}/audit/extractor/{Name}DataExtractorTest.java` |
+
+### Naming Conventions
+
+- **Application name**: `{App}` (PascalCase); **application key**: `{app-key}` (lowercase, prefix-scoped)
+- The `<Application key="...">` value **must match** the `audit.{app-key}.enabled` property exactly
+- **Extractor bean ID / registeredName**: `{prefix}.{name}DataExtractor`
+- Audit XML file: `{prefix}-audit.xml` under `alfresco/extension/audit/`
+
+### Spring Registration Pattern
+
+```xml
+<bean id="{prefix}.auditModel"
+      class="org.alfresco.repo.audit.model.AuditModelRegistrationBean"
+      init-method="registerModel">
+    <property name="auditModelRegistry" ref="auditModel.modelRegistry"/>
+    <property name="auditModelUrl" value="classpath:alfresco/extension/audit/{prefix}-audit.xml"/>
+</bean>
+
+<bean id="{prefix}.{name}DataExtractor"
+      class="{package}.audit.extractor.{Name}DataExtractor"
+      parent="auditModelExtractorBase">
+    <property name="registeredName" value="{prefix}.{name}DataExtractor"/>
+</bean>
+```
+
+- Register the application via `AuditModelRegistrationBean` (`init-method="registerModel"`).
+- Every `<RecordValue dataExtractor="X">` must reference a `<DataExtractor name="X" registeredName="...">`
+  whose `registeredName` matches a registered bean.
+
+### Enabling
+
+- `audit.enabled=true` is the master switch; `audit.{app-key}.enabled=true` enables the
+  application; the relevant producer (e.g. `audit.alfresco-access.enabled=true`) must be on.
+- Audit data is queryable via the Audit REST API (`/alfresco/s/api/audit/query/{app-key}`, admin)
+  and `AuditService`.
+
+---
+
+## Content Store Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for custom content
+> stores. All repository binaries flow through `ContentService`, which delegates to the active
+> content store bean (`fileContentStore`).
+
+### Technology
+
+ACS 26.1 ships `org.alfresco.repo.content.AbstractContentStore` as the base for custom stores,
+with `AbstractContentReader` / `AbstractContentWriter` for I/O. Caching and encrypting wrappers
+(`org.alfresco.repo.content.caching.CachingContentStore`, encrypting store) compose over a
+backing store.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Content store class | `src/main/java/{package}/content/{Store}ContentStore.java` |
+| Content reader (standalone store) | `src/main/java/{package}/content/{Store}ContentReader.java` |
+| Content writer (standalone store) | `src/main/java/{package}/content/{Store}ContentWriter.java` |
+| Spring wiring | `src/main/resources/alfresco/extension/{prefix}-content-store-context.xml` |
+| Unit test | `src/test/java/{package}/content/{Store}ContentStoreTest.java` |
+
+### Naming Conventions
+
+- **Store class**: `{Store}ContentStore`; **bean ID**: `{prefix}.{store}ContentStore`
+- **Active store**: ACS resolves binaries through the bean named `fileContentStore` — override
+  that id (or make a wrapper that id) to activate a custom store
+- **Root location property**: `dir.contentstore.{prefix}` (default `${dir.contentstore}`)
+
+### Spring Registration Pattern
+
+```xml
+<bean id="fileContentStore" class="{package}.content.{Store}ContentStore">
+    <property name="rootLocation" value="${dir.contentstore.{prefix}:${dir.contentstore}}"/>
+</bean>
+```
+
+- Place the override under `alfresco/extension/` (auto-discovered, loads after core services).
+- For a caching/encrypting wrapper, inject the real backing store as a delegate property rather
+  than discarding the default.
+
+### Guidance
+
+- Implement `isWriteSupported`, `getReader`, `getWriterInternal`, `getRootLocation`.
+- Mint content URLs with the inherited helpers (`createNewUrl()`); never hand-build them.
+- Never read/write the filesystem directly or hardcode credentials/paths — go through
+  `ContentReader`/`ContentWriter` and read config from properties/environment.
+
+---
+
+## Metadata Extractor Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for custom metadata
+> extractors. They map file content into node **properties** (content → metadata), distinct from
+> transforms/renditions (content → content).
+
+### Technology
+
+ACS 26.1 ships `org.alfresco.repo.content.metadata.AbstractMappingMetadataExtracter`. The base
+class owns the mapping and overwrite lifecycle; a custom extractor implements `extractRaw` and
+provides a colocated `.properties` mapping file. Extractors self-register with the
+`metadataExtracterRegistry`.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Extractor class | `src/main/java/{package}/metadata/{Name}MetadataExtracter.java` |
+| Mapping properties (colocated) | `src/main/resources/{package-path}/metadata/{Name}MetadataExtracter.properties` |
+| Spring registration | `src/main/resources/alfresco/module/{module-id}/context/metadata-extractor-context.xml` |
+| Unit test | `src/test/java/{package}/metadata/{Name}MetadataExtracterTest.java` |
+
+### Naming Conventions
+
+- **Extractor class**: `{Name}MetadataExtracter`; **bean ID**: `{prefix}.{name}MetadataExtracter`
+- The mapping file **must** be named `{Name}MetadataExtracter.properties` and colocated with the
+  class — the base class loads it by class name
+- Map `rawKey=targetQName`; declare every namespace via `namespace.prefix.{prefix}=URI`
+
+### Spring Registration Pattern
+
+```xml
+<bean id="{prefix}.{name}MetadataExtracter"
+      class="{package}.metadata.{Name}MetadataExtracter"
+      parent="baseMetadataExtracter">
+    <property name="registry" ref="metadataExtracterRegistry"/>
+</bean>
+```
+
+- Use `parent="baseMetadataExtracter"` and inject `registry` ref `metadataExtracterRegistry`.
+
+### Guidance
+
+- `extractRaw(ContentReader)` returns raw keys (not QNames); the base class applies the mapping.
+- Read from `reader.getContentInputStream()`; never touch the filesystem.
+- ACS routes common formats through the Transform Service's Tika engine — only build an
+  in-process extractor for bespoke formats or custom mappings.
+
+---
+
+## Subsystem Model
+
+> The Maven In-Process SDK (Platform JAR) is the only deployment target for custom subsystems.
+> A subsystem is an isolated, independently-configurable child application context. A custom
+> **authentication chain** is the most common concrete subsystem and shares this mechanism.
+
+### Technology
+
+ACS 26.1 manages subsystems via `org.alfresco.repo.management.subsystems.ChildApplicationContextFactory`
+(declared with `parent="abstractPropertyBackedBean"`). Each subsystem has a `category`, a
+`typeName`, default properties, and per-instance overrides on the extension classpath.
+
+### File Placement
+
+| Artifact | Path |
+|----------|------|
+| Subsystem context | `src/main/resources/alfresco/subsystems/{Category}/{type}/{prefix}-subsystem-context.xml` |
+| Default properties | `src/main/resources/alfresco/subsystems/{Category}/{type}/{prefix}-default.properties` |
+| Factory registration | `src/main/resources/alfresco/module/{module-id}/context/subsystem-context.xml` |
+| Instance override | `src/main/resources/alfresco/extension/subsystems/{Category}/{type}/{instance}/{instance}.properties` |
+| Managed service bean (optional) | `src/main/java/{package}/subsystem/{Service}Service.java` |
+| Auth instance properties | `src/main/resources/alfresco/extension/subsystems/Authentication/{type}/{instance}/{instance}.properties` |
+
+### Naming Conventions
+
+- **Category / type / instance**: directory layout `{Category}/{type}/{instance}` — e.g.
+  `Integrations/myService/default`, `Authentication/ldap/ldap1`
+- **Factory bean**: `parent="abstractPropertyBackedBean"` with `category`, `typeName`, `instancePath`
+- Every property used in the subsystem context must have a default in `{prefix}-default.properties`
+
+### Authentication subsystem
+
+- The `authentication.chain` property is an ordered, comma-separated list of `{instanceName}:{type}`.
+  Valid types: `alfrescoNtlm`, `ldap`, `ldap-ad`, `passthru`, `kerberos`, `external`,
+  `identity-service` (OIDC/Keycloak — modern OAuth2/SAML path).
+- Per-instance properties live under
+  `alfresco/extension/subsystems/Authentication/{type}/{instance}/{instance}.properties`.
+- Prefer `identity-service` (OAuth2/OIDC via Keycloak) for new deployments; `alfrescoNtlm`/ticket
+  is the compatibility fallback. See "Authentication" under Security Model.
+
+### Guidance
+
+- The child context is **isolated** — never redefine core repository beans inside it.
+- **Never commit secrets** in any subsystem/authentication properties file — reference
+  environment variables resolved at deploy time.
 
 ---
 
@@ -1218,6 +1534,22 @@ These patterns must **never** appear in generated code. Actively check for and r
 | Implementing `ActionConditionEvaluator` directly in a custom condition | The interface has no `init()` or `addParameterDefinitions()` support; the evaluator is never registered with the Action Service | Extend `ActionConditionEvaluatorAbstractBase` — the abstract base calls `init()` automatically when wired with `parent="action-condition-evaluator"` |
 | Overriding `evaluate()` instead of `evaluateImpl()` in a condition evaluator | `evaluate()` is implemented by `ActionConditionEvaluatorAbstractBase` and must not be overridden — it handles pre/post logic and calls `evaluateImpl()` | Override `protected boolean evaluateImpl(ActionCondition, NodeRef)` only |
 | Using `parent="action-executer"` for a condition evaluator bean | `action-executer` registers the bean as an action, not a condition; the evaluator will not appear in the rule condition list | Use `parent="action-condition-evaluator"` |
+| A v1 REST API action method (`readAll`, `readById`, `create`, …) without `@WebApiDescription` | The framework only maps annotated methods; an unannotated method is silently unreachable and the operation returns `405 Method Not Allowed` | Annotate **every** public action method with `@WebApiDescription(title = "…")` |
+| Extending `DeclarativeWebScript` for a v1 Public REST API resource | `DeclarativeWebScript` is the classic Web Script framework; it is not discovered by `ResourceLookupDictionary` and will not expose a v1 resource | Annotate a plain bean with `@EntityResource` / `@RelationshipResource` and implement the `EntityResourceAction.*` interfaces |
+| Returning a raw `List<T>` from a v1 REST API `readAll` | Bypasses the paging envelope; large result sets cause memory issues and clients cannot page | Return `CollectionWithPagingInfo.asPaged(paging, list, hasMore, totalItems)` |
+| Omitting `@UniqueId` (or annotating more than one getter) on a v1 REST model POJO | The framework cannot build the `readById` URL segment or serialise the entity id; requests by id fail | Annotate exactly one identifier getter with `@UniqueId` |
+| Reusing a built-in permission group name (`Read`, `Write`, `Coordinator`, `Collaborator`, `Editor`, `Consumer`, …) in a custom `permissionDefinitions.xml` | Redefining a core group name corrupts the global permission model and can silently alter access across the whole repository | Use project-scoped PascalCase names and compose with `<includePermissionGroup permissionGroup="Read" type="cm:cmobject"/>` |
+| Replacing the core `permissionDefinitions.xml` instead of registering an extension model | Overwriting the core model removes all built-in permissions; the repository becomes unusable | Register an **additional** model via a bean with `parent="permissionModelBootstrap"` and a `model` property pointing at `alfresco/extension/{prefix}-permissionDefinitions.xml` |
+| `runAsSystem` inside a `DynamicAuthority.hasAuthority` check | Privilege escalation on every permission evaluation; also a performance hazard (runs per node) | Keep `hasAuthority` cheap and user-context; guard with `nodeService.exists()` and return based on node state only |
+| `<RecordValue dataExtractor="X">` referencing an unregistered extractor in an audit application | The audit application fails to register or silently records nothing; the failure is easy to miss | Declare a `<DataExtractor name="X" registeredName="...">` and register a matching bean (`parent="auditModelExtractorBase"`) |
+| Audit `<Application key="...">` not matching `audit.{key}.enabled` | The application is defined but never enabled, so nothing is recorded | Keep the `key` and the `audit.{key}.enabled` property identical; also ensure `audit.enabled=true` |
+| A custom content store that reads/writes the filesystem directly (e.g. `new File(...)`, `Files.newOutputStream`) instead of through reader/writer channels | Bypasses content URL handling, mimetype/encoding tracking, and the caching/encrypting layers; corrupts content addressing | Extend `AbstractContentStore` and return `AbstractContentReader` / `AbstractContentWriter`; mint URLs with `createNewUrl()` |
+| Hardcoding the backing path or credentials in a custom content store | Breaks portability across environments and leaks secrets into VCS | Read `rootLocation` and credentials from properties/environment (`dir.contentstore.{prefix}`, env vars) |
+| Hardcoding target property QNames inside `extractRaw` of a metadata extractor | Defeats the mapping/overwrite lifecycle and prevents per-deployment remapping | Return raw keys from `extractRaw`; map `rawKey=targetQName` in the colocated `{Name}MetadataExtracter.properties` |
+| Registering a metadata extractor without `parent="baseMetadataExtracter"` / `metadataExtracterRegistry` | The extractor is never registered and silently never runs | Use `parent="baseMetadataExtracter"` and inject `registry` ref `metadataExtracterRegistry` |
+| Committing secrets (LDAP bind password, IdP client secret) in subsystem/authentication `*.properties` | Leaks credentials into VCS; rotation requires a rebuild | Reference environment variables (`${LDAP_BIND_PASSWORD}`, `${IDENTITY_SERVICE_SECRET}`) resolved at deploy time |
+| Redefining core repository beans inside a subsystem child context | The child context is isolated; redefinitions either fail to wire or shadow the real beans unpredictably | Define only subsystem-local beans; reference core services through the subsystem's documented extension points |
+| A subsystem context property with no default in `{prefix}-default.properties` | The child context fails to start with an unresolved placeholder | Provide a default for every property in `{prefix}-default.properties`; override per instance on the extension classpath |
 | `@PostConstruct` or `ApplicationReadyEvent` for repository data initialisation | Fires on every ACS restart, creating duplicate folders, categories, or nodes on each server start | Extend `AbstractModuleComponent` with `parent="module.baseComponent"` — the framework tracks execution in the DB and runs `executeInternal()` exactly once per `sinceVersion` |
 | Extending `AbstractLifecycleBean` for a data bootstrap loader | `AbstractLifecycleBean` does not integrate with the module component tracking system; provides no idempotency guarantee | Extend `AbstractModuleComponent` instead |
 | Hardcoding a `NodeRef` string for Company Home or other well-known locations in a bootstrap loader | NodeRef UUIDs differ between repositories; hardcoded refs break on any install other than the original | Use `nodeLocatorService.getNode("companyhome", null, null)` |

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: web-scripts
-# Usage: web-scripts.sh <generated-dir> <reference-dir>
+# Usage: web-scripts.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

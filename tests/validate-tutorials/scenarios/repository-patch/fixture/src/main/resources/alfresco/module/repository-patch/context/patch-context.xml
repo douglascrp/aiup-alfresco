@@ -1,0 +1,9 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="patch.repository-patch.activeFlag" parent="basePatch" class="com.someco.patch.ActiveFlagPatch">
+    <property name="id" value="patch.repository-patch.activeFlag"/>
+    <property name="description" value="Sets sc:isActive on legacy docs"/>
+    <property name="fixesFromSchema" value="0"/>
+    <property name="fixesToSchema" value="10000"/>
+    <property name="targetSchema" value="10001"/>
+  </bean>
+</beans>

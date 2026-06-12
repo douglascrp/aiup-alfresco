@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans">
+    <bean id="sc.setWebFlag" class="com.someco.action.SetWebFlagActionExecuter" parent="action-executer">
+        <property name="nodeService" ref="NodeService"/>
+    </bean>
+</beans>

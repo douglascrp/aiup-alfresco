@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: workflows
-# Usage: workflows.sh <generated-dir> <reference-dir>
+# Usage: workflows.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -45,6 +45,10 @@ if [[ -n "$BPMN" ]]; then
     assert_grep 'isExecutable="true"' "$BPMN" "BPMN process is executable"
     assert_not_grep 'org.flowable' "$BPMN" "BPMN has no forbidden org.flowable references"
     assert_not_grep 'redeploy">true' "$BPMN" "BPMN has no redeploy=true (forbidden)"
+    # Scenario declares a parallel gateway, a timer boundary escalation, and a task listener
+    assert_grep 'parallelGateway' "$BPMN" "BPMN declares a parallel gateway"
+    assert_grep 'timerEventDefinition' "$BPMN" "BPMN declares a timer boundary event (escalation)"
+    assert_grep 'taskListener' "$BPMN" "BPMN registers a task listener"
 fi
 
 # ---- Workflow task content model ----

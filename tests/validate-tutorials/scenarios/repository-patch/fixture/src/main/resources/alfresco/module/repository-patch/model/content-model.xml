@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model name="sc:contentModel" xmlns="http://www.alfresco.org/model/dictionary/1.0">
+    <namespaces><namespace uri="http://www.someco.com/model/content/1.0" prefix="sc"/></namespaces>
+    <types><type name="sc:doc"><parent>cm:content</parent></type></types>
+</model>

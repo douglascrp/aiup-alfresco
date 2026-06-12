@@ -4,11 +4,11 @@
 # Usage:
 #   deploy.sh <scenario> [--no-teardown]
 #
-# Scenarios: in-process | out-of-process | transforms | aca-extension
+# Scenarios: in-process | rest-api | audit | out-of-process | transforms | aca-extension
 #
 # --no-teardown: leave the stack running after smoke tests (useful for debugging)
 #
-# Prerequisites: docker, docker compose, maven (for in-process/transforms/out-of-process)
+# Prerequisites: docker, docker compose, maven (for in-process/rest-api/audit/transforms/out-of-process)
 #
 # Environment:
 #   DEPLOY_TIMEOUT   seconds to wait for healthy services (default: 300)
@@ -22,7 +22,7 @@ TIMEOUT="${DEPLOY_TIMEOUT:-300}"
 
 usage() {
     printf 'Usage: %s <scenario> [--no-teardown]\n' "$(basename "$0")"
-    printf 'Scenarios: in-process out-of-process transforms aca-extension\n'
+    printf 'Scenarios: in-process rest-api audit out-of-process transforms aca-extension\n'
 }
 
 [[ $# -lt 1 ]] && { usage >&2; exit 1; }
@@ -56,7 +56,7 @@ teardown() {
 # ---- Build step ----
 build_scenario() {
     case "$SCENARIO" in
-        in-process)
+        in-process|rest-api|audit)
             printf '[%s] Building Maven project...\n' "$SCENARIO"
             (cd "$COMPOSE_DIR" && mvn clean package -q -DskipTests)
             ;;
@@ -113,7 +113,7 @@ wait_healthy() {
 # ---- Scenario-specific wait logic ----
 wait_for_services() {
     case "$SCENARIO" in
-        in-process)
+        in-process|rest-api|audit)
             wait_healthy "ACS" \
                 "http://localhost:8080/alfresco/api/-default-/public/alfresco/versions/1/probes/-ready-" \
                 "-u admin:admin"

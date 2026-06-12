@@ -1,0 +1,8 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="sc.permissionModelBootstrap" parent="permissionModelBootstrap">
+    <property name="model" value="alfresco/extension/sc-permissionDefinitions.xml"/>
+  </bean>
+  <bean id="sc.reviewerDynamicAuthority" class="com.someco.security.ReviewerDynamicAuthority">
+    <property name="nodeService" ref="NodeService"/>
+  </bean>
+</beans>

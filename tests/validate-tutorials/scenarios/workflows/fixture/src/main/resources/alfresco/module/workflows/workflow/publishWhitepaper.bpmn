@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:activiti="http://activiti.org/bpmn"
+             targetNamespace="http://www.someco.com/workflow">
+  <process id="publishWhitepaper" isExecutable="true">
+    <startEvent id="start"/>
+    <parallelGateway id="fork"/>
+    <userTask id="review" activiti:formKey="scwf:submitReviewTask">
+      <extensionElements>
+        <activiti:taskListener event="create" class="com.someco.workflow.ExternalReviewNotification"/>
+      </extensionElements>
+    </userTask>
+    <boundaryEvent id="escalate" attachedToRef="review" cancelActivity="false">
+      <timerEventDefinition><timeDuration>PT5M</timeDuration></timerEventDefinition>
+    </boundaryEvent>
+    <endEvent id="end"/>
+  </process>
+</definitions>

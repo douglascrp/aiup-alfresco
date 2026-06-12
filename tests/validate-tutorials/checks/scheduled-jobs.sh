@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: scheduled-jobs
-# Usage: scheduled-jobs.sh <generated-dir> <reference-dir>
+# Usage: scheduled-jobs.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

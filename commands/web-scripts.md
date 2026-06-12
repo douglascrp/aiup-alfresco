@@ -8,6 +8,12 @@ argument-hint: "[path to REQUIREMENTS.md or description]"
 
 > **In-Process SDK only** — deploys inside the ACS JVM as a Platform JAR.
 
+> **For a modern, structured REST API use `/rest-api`** (annotation-based v1 Public REST API
+> with paging and content negotiation). This command generates **classic declarative Web
+> Scripts** — still the right tool for server-side HTML/FreeMarker rendering, custom
+> binary/streaming downloads, multipart uploads, and ad-hoc endpoints under
+> `/alfresco/s/api/{prefix}/...`.
+
 Generate Web Script files from requirements.
 
 ## Input
@@ -86,3 +92,57 @@ try {
     if (rs != null) { rs.close(); }   // releases Solr cursor / DB resources
 }
 ```
+
+## Multipart Uploads & Streaming Responses
+
+These two patterns are the main reason to choose a classic Web Script over `/rest-api`.
+
+### Multipart / file upload
+
+For `multipart/form-data` POSTs, extend `AbstractWebScript` (not `DeclarativeWebScript`) and
+read the parsed form from the request. Each uploaded file arrives as a `FormField` whose
+content is exposed as an InputStream.
+
+```java
+public class UploadWebScript extends AbstractWebScript {
+    @Override
+    public void execute(WebScriptRequest req, WebScriptResponse res) throws IOException {
+        FormData form = (FormData) req.parseContent();          // org.springframework.extensions.webscripts.servlet.FormData
+        for (FormData.FormField field : form.getFields()) {
+            if (field.getIsFile()) {
+                try (InputStream in = field.getInputStream()) {
+                    // write to a ContentWriter via ContentService — never to the local filesystem
+                }
+            }
+        }
+        res.setStatus(200);
+    }
+}
+```
+
+- The descriptor must declare `<transaction>required</transaction>` and the controller must
+  write bytes through `ContentService.getWriter(...)`, never to a local path.
+- Guard total upload size and validate the declared mimetype before streaming.
+
+### Streaming / binary responses
+
+For large or binary payloads, bypass the FreeMarker template and write directly to the
+response output stream — this avoids buffering the whole payload in memory.
+
+```java
+public class DownloadWebScript extends AbstractWebScript {
+    @Override
+    public void execute(WebScriptRequest req, WebScriptResponse res) throws IOException {
+        res.setContentType("application/octet-stream");
+        res.setHeader("Content-Disposition", "attachment; filename=\"export.bin\"");
+        try (OutputStream out = res.getOutputStream()) {
+            // stream from a ContentReader: contentService.getReader(nodeRef, ContentModel.PROP_CONTENT).getContentInputStream()
+        }
+    }
+}
+```
+
+- A streaming/binary script has **no** `.json.ftl` template — `AbstractWebScript.execute()`
+  owns the full response.
+- Set `Content-Type` and `Content-Disposition` explicitly; set `<format default="any"/>` in
+  the descriptor so callers are not forced to negotiate a format.

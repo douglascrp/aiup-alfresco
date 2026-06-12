@@ -1,0 +1,9 @@
+<webscript>
+    <shortname>List Docs</shortname>
+    <description>Lists docs</description>
+    <url>/api/sc/docs</url>
+    <authentication>user</authentication>
+    <format default="json"/>
+    <transaction>required</transaction>
+    <cache><never>true</never></cache>
+</webscript>

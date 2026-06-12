@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: aca-extension
-# Usage: aca-extension.sh <generated-dir> <reference-dir>
+# Usage: aca-extension.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

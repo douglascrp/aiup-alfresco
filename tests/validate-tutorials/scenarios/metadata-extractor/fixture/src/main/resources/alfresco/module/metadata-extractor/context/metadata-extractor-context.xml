@@ -1,0 +1,5 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="sc.contractMetadataExtracter" class="com.someco.metadata.ContractMetadataExtracter" parent="baseMetadataExtracter">
+    <property name="registry" ref="metadataExtracterRegistry"/>
+  </bean>
+</beans>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model name="scwf:workflowModel" xmlns="http://www.alfresco.org/model/dictionary/1.0">
+    <imports>
+        <import uri="http://www.alfresco.org/model/bpm/1.0" prefix="bpm"/>
+    </imports>
+    <namespaces><namespace uri="http://www.someco.com/model/workflow/1.0" prefix="scwf"/></namespaces>
+</model>

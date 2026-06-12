@@ -1,0 +1,17 @@
+<extension>
+  <modules>
+    <module>
+      <id>sc-compliance-dashboard-module</id>
+      <version>1.0</version>
+      <auto-deploy>true</auto-deploy>
+      <components>
+        <component>
+          <region-id>compliance</region-id>
+          <source-id>compliance-dashboard</source-id>
+          <scope>page</scope>
+          <url>/components/sc-compliance/dashboard</url>
+        </component>
+      </components>
+    </module>
+  </modules>
+</extension>

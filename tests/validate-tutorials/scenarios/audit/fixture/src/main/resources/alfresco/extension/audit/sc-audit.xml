@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Audit xmlns="http://www.alfresco.org/repo/audit/model/3.2">
+  <DataExtractors>
+    <DataExtractor name="simpleValue" registeredName="auditModel.extractor.simpleValue"/>
+    <DataExtractor name="ClassificationExtractor" registeredName="sc.classificationDataExtractor"/>
+  </DataExtractors>
+  <PathMappings>
+    <PathMap source="/alfresco-access/transaction" target="/sc/transaction"/>
+  </PathMappings>
+  <Application name="DocumentAccess" key="sc">
+    <AuditPath key="transaction">
+      <RecordValue key="user" dataExtractor="simpleValue" dataSource="/sc/transaction/user"/>
+      <RecordValue key="classification" dataExtractor="ClassificationExtractor" dataSource="/sc/transaction/path"/>
+    </AuditPath>
+  </Application>
+</Audit>

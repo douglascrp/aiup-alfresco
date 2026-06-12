@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: transforms
-# Usage: transforms.sh <generated-dir> <reference-dir>
+# Usage: transforms.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

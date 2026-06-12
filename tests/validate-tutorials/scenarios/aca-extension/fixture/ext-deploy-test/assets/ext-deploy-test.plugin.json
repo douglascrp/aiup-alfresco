@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../extension.schema.json",
+  "$id": "sc.ext-deploy-test",
+  "$version": "1.0.0",
+  "routes": [ { "id": "sc.page", "path": "ext/sc", "component": "sc.components.page", "auth": ["content-services"] } ],
+  "features": {
+    "navbar": [ { "id": "sc.navbar", "items": [] } ],
+    "toolbar": [ { "id": "sc.toolbar" } ],
+    "contextMenu": [ { "id": "sc.contextMenu" } ],
+    "sidebar": [ { "id": "sc.sidebar", "component": "sc.components.sidebar" } ]
+  },
+  "actions": [ { "id": "sc.action", "type": "SC_ACTION" } ]
+}

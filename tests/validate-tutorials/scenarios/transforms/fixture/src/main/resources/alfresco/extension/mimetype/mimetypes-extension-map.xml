@@ -1,0 +1,7 @@
+<alfresco-config area="mimetype-map">
+    <config evaluator="string-compare" condition="Mimetype Map">
+        <mimetypes>
+            <mimetype mimetype="text/markdown" display="Markdown"><extension>md</extension></mimetype>
+        </mimetypes>
+    </config>
+</alfresco-config>

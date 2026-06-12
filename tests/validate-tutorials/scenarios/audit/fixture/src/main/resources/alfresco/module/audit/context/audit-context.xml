@@ -1,0 +1,9 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="sc.auditModel" class="org.alfresco.repo.audit.model.AuditModelRegistrationBean" init-method="registerModel">
+    <property name="auditModelRegistry" ref="auditModel.modelRegistry"/>
+    <property name="auditModelUrl" value="classpath:alfresco/extension/audit/sc-audit.xml"/>
+  </bean>
+  <bean id="sc.classificationDataExtractor" class="com.someco.audit.extractor.ClassificationDataExtractor" parent="auditModelExtractorBase">
+    <property name="registeredName" value="sc.classificationDataExtractor"/>
+  </bean>
+</beans>

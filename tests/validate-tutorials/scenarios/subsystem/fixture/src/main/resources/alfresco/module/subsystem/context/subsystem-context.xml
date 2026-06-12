@@ -1,0 +1,8 @@
+<?xml version="1.0"?><beans xmlns="http://www.springframework.org/schema/beans">
+  <bean id="sc.notifier" parent="abstractPropertyBackedBean">
+    <property name="autoStart" value="true"/>
+    <property name="category" value="Integrations"/>
+    <property name="typeName" value="notifier"/>
+    <property name="instancePath"><list><value>notifier</value></list></property>
+  </bean>
+</beans>

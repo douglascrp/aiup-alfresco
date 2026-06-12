@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans">
+    <bean id="sc.dictionaryBootstrap" parent="dictionaryModelBootstrap" depends-on="dictionaryBootstrap">
+        <property name="models">
+            <list><value>alfresco/module/content-types/model/content-model.xml</value></list>
+        </property>
+    </bean>
+</beans>

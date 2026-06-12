@@ -1,0 +1,8 @@
+<webscript>
+  <shortname>Compliance Dashboard</shortname>
+  <description>Compliance dashboard page</description>
+  <url>/page/compliance-dashboard</url>
+  <family>Share</family>
+  <authentication>user</authentication>
+  <transaction>none</transaction>
+</webscript>

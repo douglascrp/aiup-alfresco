@@ -1,0 +1,17 @@
+<alfresco-config>
+  <config evaluator="node-type" condition="sc:doc">
+    <forms>
+      <form>
+        <field-visibility>
+          <show id="sc:isActive"/>
+          <show id="sc:campaign"/>
+        </field-visibility>
+        <appearance>
+          <set id="general" appearance="bordered-panel" label-id="sc.set.general"/>
+          <field id="sc:isActive" set="general" label-id="sc.isActive"/>
+          <field id="sc:campaign" set="general" label-id="sc.campaign"/>
+        </appearance>
+      </form>
+    </forms>
+  </config>
+</alfresco-config>

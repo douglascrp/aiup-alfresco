@@ -133,14 +133,20 @@ See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow and [CURSOR.m
 | `/scaffold` | Both | 2nd | `pom.xml`, `module.properties`, `module-context.xml` (repo in-process); Share-tier base project layout (Share JAR); `pom.xml`, `Application.java`, `application.properties` (out-of-process); aggregator POM + sibling sub-module skeletons (mixed) |
 | `/content-model` | In-Process | 3rd | Content model XML + Spring bootstrap context + Java model constants interface |
 | `/workflow` | In-Process | 4th | Activiti BPMN process + workflow task content model + bootstrap registration + i18n bundle |
-| `/web-scripts` | In-Process | Any | Web Script descriptor + controller + FreeMarker template |
+| `/web-scripts` | In-Process | Any | Classic declarative Web Script descriptor + controller + FreeMarker template (incl. multipart/streaming) |
+| `/rest-api` | In-Process | Any | Modern v1 Public REST API: annotation-based `@EntityResource` + optional `@RelationshipResource` + model POJO + Spring registration + unit test |
 | `/behaviours` | In-Process | Any | Behaviour/policy class + Spring bean wiring |
 | `/actions` | In-Process | Any | `ActionExecuter` class + bean registration |
 | `/scheduled-jobs` | In-Process | Any | Cluster-safe Quartz `AbstractScheduledLockedJob` + executer bean + `CronTriggerBean` registration + unit test |
 | `/bootstrap-loader` | In-Process | Any | `AbstractModuleComponent` data loader that creates initial folders/categories exactly once per module version + unit test |
 | `/rule-conditions` | In-Process | Any | Custom `ActionConditionEvaluatorAbstractBase` rule condition with parameter definitions, Spring registration, and unit test |
 | `/repository-patch` | In-Process | Any | `AbstractPatch` data migration patch with schema version range, `basePatch` registration in `patch-context.xml`, and unit test |
-| `/transforms` | In-Process + Out-of-Process | Any | `RenditionDefinition2Impl` rendition definition; optional MIME type registration; optional custom `TransformEngine` + `CustomTransformer` Spring Boot engine project with `engine_config.json` and `Dockerfile` |
+| `/permissions` | In-Process | Any | Custom permission groups/permissions (`{prefix}-permissionDefinitions.xml` registered via `permissionModelBootstrap`) + optional `DynamicAuthority` + unit test |
+| `/audit` | In-Process | Any | Custom audit application (`{prefix}-audit.xml` + `AuditModelRegistrationBean`) + optional `AbstractDataExtractor` + enable properties + unit test |
+| `/transforms` | In-Process + Out-of-Process | Any | `RenditionDefinition2Impl` rendition definition; optional MIME type registration; optional custom `TransformEngine` + `CustomTransformer` Spring Boot engine project with `engine_config.json` and `Dockerfile`; pipeline transforms |
+| `/content-store` | In-Process | Any | Custom `AbstractContentStore` connector + reader/writer + `fileContentStore` activation + unit test |
+| `/metadata-extractor` | In-Process | Any | Custom `AbstractMappingMetadataExtracter` + colocated mapping `.properties` + registry registration + unit test |
+| `/subsystem` | In-Process / Config | Any | Custom subsystem (`ChildApplicationContextFactory` + default/instance properties); authentication mode configures the `authentication.chain` (LDAP, identity-service/OIDC, external) |
 | `/aca-extension` | ACA/ADW (Angular) | Any | Full ACA/ADW UI extension: `plugin.json` manifest, `provideExtension()` providers function, NgRx actions + effects, Angular standalone components (page, sidebar), HTTP service, and integration patch instructions |
 | `/share-config` | Share JAR | Any | `share-config-custom.xml` + Share message bundle + optional evaluator stub |
 | `/surf` | Share JAR | Any | Surf extension metadata + page/component web scripts + optional message bundle/evaluator |
@@ -163,14 +169,26 @@ flowchart TD
 
     subgraph platform["Platform JAR only"]
         p_scaffold --> p_model["/content-model<br/>if custom types/aspects are needed"]
-        p_scaffold --> p_ws["/web-scripts<br/>if ACS-hosted API is needed"]
+        p_scaffold --> p_ws["/web-scripts<br/>classic declarative Web Scripts"]
+        p_scaffold --> p_rest["/rest-api<br/>modern v1 Public REST API"]
         p_scaffold --> p_beh["/behaviours<br/>if synchronous rules are needed"]
         p_scaffold --> p_actions["/actions<br/>if on-demand actions are needed"]
+        p_scaffold --> p_perm["/permissions<br/>if custom permissions are needed"]
+        p_scaffold --> p_audit["/audit<br/>if a custom audit trail is needed"]
+        p_scaffold --> p_store["/content-store<br/>if a custom content store is needed"]
+        p_scaffold --> p_meta["/metadata-extractor<br/>if custom metadata extraction is needed"]
+        p_scaffold --> p_subsys["/subsystem<br/>if a custom subsystem or auth chain is needed"]
         p_scaffold --> p_compose["/docker-compose"]
         p_model --> p_compose
         p_ws --> p_compose
+        p_rest --> p_compose
         p_beh --> p_compose
         p_actions --> p_compose
+        p_perm --> p_compose
+        p_audit --> p_compose
+        p_store --> p_compose
+        p_meta --> p_compose
+        p_subsys --> p_compose
         p_compose --> p_test["/test"]
     end
 
@@ -189,8 +207,14 @@ flowchart TD
     subgraph mixed["Mixed repository"]
         m_scaffold --> m_model["/content-model<br/>platform module, if needed"]
         m_scaffold --> m_ws["/web-scripts<br/>platform module, if needed"]
+        m_scaffold --> m_rest["/rest-api<br/>platform module, if needed"]
         m_scaffold --> m_beh["/behaviours<br/>platform module, if needed"]
         m_scaffold --> m_actions["/actions<br/>platform module, if needed"]
+        m_scaffold --> m_perm["/permissions<br/>platform module, if needed"]
+        m_scaffold --> m_audit["/audit<br/>platform module, if needed"]
+        m_scaffold --> m_store["/content-store<br/>platform module, if needed"]
+        m_scaffold --> m_meta["/metadata-extractor<br/>platform module, if needed"]
+        m_scaffold --> m_subsys["/subsystem<br/>platform module, if needed"]
         m_scaffold --> m_events["/events<br/>events module"]
         m_scaffold --> m_share["/share-config<br/>share module, if needed"]
         m_scaffold --> m_surf["/surf<br/>share module, if needed"]
@@ -198,6 +222,12 @@ flowchart TD
         m_scaffold --> m_compose["/docker-compose"]
         m_model --> m_compose
         m_ws --> m_compose
+        m_rest --> m_compose
+        m_perm --> m_compose
+        m_audit --> m_compose
+        m_store --> m_compose
+        m_meta --> m_compose
+        m_subsys --> m_compose
         m_beh --> m_compose
         m_actions --> m_compose
         m_events --> m_compose
@@ -211,7 +241,7 @@ flowchart TD
 Notes:
 
 - `/scaffold` is the gate for every generation command; if `REQUIREMENTS.md` does not exist yet, run `/requirements` first.
-- `/content-model`, `/web-scripts`, `/behaviours`, and `/actions` are only valid when the architecture includes a Platform JAR project.
+- `/content-model`, `/web-scripts`, `/rest-api`, `/behaviours`, `/actions`, `/permissions`, `/audit`, `/content-store`, `/metadata-extractor`, and `/subsystem` are only valid when the architecture includes a Platform JAR project (the `/subsystem` authentication mode is configuration-only).
 - `/share-config` is only valid when the architecture includes a Share JAR project.
 - `/surf` is only valid when the architecture includes a Share JAR project.
 - `/aikau` is only valid when the architecture includes a Share JAR project.
@@ -225,6 +255,9 @@ Notes:
 Skills are invoked automatically by Claude during command execution:
 
 - **content-model-validator** — validates model XML structure and naming conventions *(In-Process)*
+- **rest-api-validator** — validates v1 Public REST API annotations, `@WebApiDescription` coverage, and paging *(In-Process)*
+- **permission-model-validator** — validates custom permission XML, built-in name collisions, and dynamic authorities *(In-Process)*
+- **audit-config-validator** — validates audit application XML, app-key/enable consistency, and extractor wiring *(In-Process)*
 - **docker-compose-healthcheck-injector** — ensures every service has a healthcheck block *(Both)*
 - **sdk-version-detector** — detects In-Process vs Out-of-Process SDK and adjusts generated code *(Both)*
 - **event-api-topology-checker** — validates ActiveMQ topic names and event consumer patterns *(Out-of-Process)*
@@ -345,3 +378,7 @@ The current workflow covers the core Alfresco extension paths first. The followi
 - ~~**Rule framework extras** (rule conditions)~~ — delivered: `/rule-conditions`; admin-facing rule UI configuration (Share) remains planned
 - ~~**Custom transforms and renditions**~~ — delivered: `/transforms`
 - ~~**UI extensions** (ACA/ADW)~~ — delivered: `/aca-extension`; Share/Surf/Aikau already covered by `/share-config`, `/surf`, `/aikau`
+- ~~**Modern REST API** (v1 Public API framework)~~ — delivered: `/rest-api` (annotation-based `@EntityResource` / `@RelationshipResource`, distinct from classic `/web-scripts`)
+- ~~**Security model extras** (custom permissions, custom audit)~~ — delivered: `/permissions` (permission groups + dynamic authorities), `/audit` (audit applications + data extractors)
+- ~~**Storage & extraction** (content stores, metadata extractors)~~ — delivered: `/content-store` (custom `ContentStore` connectors), `/metadata-extractor` (`AbstractMappingMetadataExtracter` mappings)
+- ~~**Subsystems & authentication** (custom subsystems, auth chains)~~ — delivered: `/subsystem` (`ChildApplicationContextFactory` subsystems + authentication-chain config: LDAP, identity-service/OIDC, external)

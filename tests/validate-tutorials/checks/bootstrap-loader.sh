@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checker: bootstrap-loader
-# Usage: bootstrap-loader.sh <generated-dir> <reference-dir>
+# Usage: bootstrap-loader.sh <project-dir>
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
