@@ -29,7 +29,7 @@ Options:
 
 Examples:
   $(basename "$0")
-  $(basename "$0") --aiup-prefix tools/aiup-alfresco/ --output /path/to/l2-repo/.cursor/skills --merge
+  $(basename "$0") --aiup-prefix tools/aiup-alfresco/ --output /path/to/project-repo/.cursor/skills --merge
 EOF
 }
 

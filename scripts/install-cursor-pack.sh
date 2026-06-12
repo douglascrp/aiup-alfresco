@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install the AIUP Cursor pack into a consumer Alfresco project workspace root.
 #
-# Run from the consumer project root (e.g. l2-repo/):
+# Run from the consumer project root (e.g. project-repo/):
 #   ./tools/aiup-alfresco/scripts/install-cursor-pack.sh
 #
 # Or with a custom submodule path:

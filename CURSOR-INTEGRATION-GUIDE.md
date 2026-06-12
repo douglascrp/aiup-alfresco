@@ -1,6 +1,6 @@
 # Guia: integrar o AIUP Alfresco (Cursor) em um projeto Alfresco existente
 
-Este guia descreve como configurar do zero a máquina de um desenvolvedor e integrar o pacote **aiup-alfresco** a um projeto Alfresco já existente (ex.: **l2-repo**) no **Cursor**.
+Este guia descreve como configurar do zero a máquina de um desenvolvedor e integrar o pacote **aiup-alfresco** a um projeto Alfresco já existente (ex.: **project-repo**) no **Cursor**.
 
 **Público-alvo:** desenvolvedor que nunca usou AIUP, Cursor skills ou o repositório `aiup-alfresco`.
 
@@ -82,25 +82,25 @@ git clone <URL-do-seu-fork>/aiup-alfresco.git ~/Projetos/opensource/aborroy/aiup
 
 ### Opção B — Submodule dentro do projeto Alfresco (recomendado para equipe)
 
-No root do projeto Alfresco (ex.: `l2-repo`):
+No root do projeto Alfresco (ex.: `project-repo`):
 
 ```bash
-cd /caminho/para/l2-repo
+cd /caminho/para/project-repo
 git submodule add https://github.com/aborroy/aiup-alfresco.git tools/aiup-alfresco
 git submodule update --init --recursive
 ```
 
 ---
 
-## Parte 3 — Integrar ao projeto existente (ex.: l2-repo)
+## Parte 3 — Integrar ao projeto existente (ex.: project-repo)
 
 Suponha esta estrutura do projeto:
 
 ```
-l2-repo/
+project-repo/
 ├── pom.xml
 ├── src/main/java/...
-├── src/main/resources/alfresco/module/l2-repo/...
+├── src/main/resources/alfresco/module/project-repo/...
 └── README.md
 ```
 
@@ -118,7 +118,7 @@ Para equipe, prefira **submodule**.
 Com submodule em `tools/aiup-alfresco/`, execute **uma vez** (e após cada `git submodule update`):
 
 ```bash
-cd /caminho/para/l2-repo
+cd /caminho/para/project-repo
 ./tools/aiup-alfresco/scripts/install-cursor-pack.sh
 ```
 
@@ -136,12 +136,12 @@ cp tools/aiup-alfresco/scripts/aiup-command.sh scripts/aiup/
 chmod +x scripts/aiup/*.sh
 ```
 
-> **Importante:** skills dentro de `tools/aiup-alfresco/.cursor/skills/` **não** aparecem no autocomplete do Agent quando o workspace é `l2-repo/`. O `install-cursor-pack.sh` coloca as skills na raiz do projeto consumidor.
+> **Importante:** skills dentro de `tools/aiup-alfresco/.cursor/skills/` **não** aparecem no autocomplete do Agent quando o workspace é `project-repo/`. O `install-cursor-pack.sh` coloca as skills na raiz do projeto consumidor.
 
-### 3.3 Estrutura final esperada no l2-repo
+### 3.3 Estrutura final esperada no project-repo
 
 ```
-l2-repo/
+project-repo/
 ├── .cursor/
 │   ├── rules/aiup-alfresco.mdc      # regra do projeto
 │   ├── skills/                       # 30 skills (19 slash commands + validadores + agentes)
@@ -162,22 +162,22 @@ l2-repo/
 
 ### 3.4 Adaptar versões do Alfresco (obrigatório em projeto existente)
 
-O `AGENTS.md` do aiup-alfresco assume **ACS 26.1** e **SDK 4.15.0**. O **l2-repo** usa:
+O `AGENTS.md` do aiup-alfresco assume **ACS 26.1** e **SDK 4.15.0**. O **project-repo** usa:
 
 - ACS **23.4.1**
 - SDK **4.10.0**
 
 Crie uma regra local que sobrescreve as versões, para o agente não gerar código incompatível.
 
-Crie o arquivo `.cursor/rules/l2-alfresco-versions.mdc`:
+Crie o arquivo `.cursor/rules/project-alfresco-versions.mdc`:
 
 ```markdown
 ---
-description: Versões Alfresco do projeto l2-repo — prevalecem sobre AGENTS.md do aiup-alfresco
+description: Versões Alfresco do projeto project-repo — prevalecem sobre AGENTS.md do aiup-alfresco
 alwaysApply: true
 ---
 
-# Stack do l2-repo
+# Stack do project-repo
 
 Ao gerar ou revisar código neste repositório, use **estas** versões (não as do AGENTS.md genérico):
 
@@ -187,10 +187,10 @@ Ao gerar ou revisar código neste repositório, use **estas** versões (não as 
 | Alfresco Share | 23.4.0.46 |
 | Maven In-Process SDK | 4.10.0 (`alfresco-sdk-aggregator`) |
 | Java | 17 |
-| Módulo | `l2-repo` (`br.com.dgcloud`) |
-| Namespace do model | `l2` |
+| Módulo | `project-repo` (`br.com.dgcloud`) |
+| Namespace do model | `project` |
 
-Leia `pom.xml` e os arquivos em `src/main/resources/alfresco/module/l2-repo/` antes de propor alterações.
+Leia `pom.xml` e os arquivos em `src/main/resources/alfresco/module/project-repo/` antes de propor alterações.
 Não atualize versões do SDK/ACS sem solicitação explícita do usuário.
 ```
 
@@ -214,7 +214,7 @@ Adicione ao repositório (não commite `skills-lock.json` nem `.agents/`):
 
 ```bash
 git add .cursor/ tools/aiup-alfresco .gitmodules   # se submodule
-git add .cursor/rules/l2-alfresco-versions.mdc
+git add .cursor/rules/project-alfresco-versions.mdc
 git status   # revisar antes do commit
 ```
 
@@ -225,7 +225,7 @@ git status   # revisar antes do commit
 ### 4.1 Abrir o workspace correto
 
 1. No Cursor: **File → Open Folder**
-2. Selecione a pasta **`l2-repo`** (root do projeto), não a pasta `aiup-alfresco` isolada
+2. Selecione a pasta **`project-repo`** (root do projeto), não a pasta `aiup-alfresco` isolada
 3. O Agent precisa ver `pom.xml`, `src/` e `.cursor/` no mesmo workspace
 
 ### 4.2 Confirmar que Rules e Skills carregaram
@@ -233,7 +233,7 @@ git status   # revisar antes do commit
 1. Abra **Settings → Rules**
 2. Verifique se aparecem:
    - `aiup-alfresco`
-   - regra de versões local (ex.: `l2-alfresco-versions`)
+   - regra de versões local (ex.: `project-alfresco-versions`)
 3. Em **Agent**, digite `/` — deve listar `/requirements`, `/scaffold`, `content-model-validator`, etc.
 
 ### 4.3 Habilitar Hooks (opcional)
@@ -249,7 +249,7 @@ git status   # revisar antes do commit
 ### 5.1 Teste 1 — listar comandos
 
 ```bash
-cd /caminho/para/l2-repo
+cd /caminho/para/project-repo
 ./tools/aiup-alfresco/scripts/aiup-command.sh list
 ```
 
@@ -268,8 +268,8 @@ Copie a saída e cole no Agent do Cursor. O agente deve ler `AGENTS.md` e `comma
 No chat do Cursor (modo **Agent**), envie:
 
 ```
-Siga @.cursor/rules/l2-alfresco-versions.mdc e @tools/aiup-alfresco/AGENTS.md.
-Analise o content model existente em @src/main/resources/alfresco/module/l2-repo/model/content-model.xml
+Siga @.cursor/rules/project-alfresco-versions.mdc e @tools/aiup-alfresco/AGENTS.md.
+Analise o content model existente em @src/main/resources/alfresco/module/project-repo/model/content-model.xml
 e liste possíveis melhorias sem alterar arquivos ainda.
 ```
 
@@ -289,7 +289,7 @@ O agente deve ler `tools/aiup-alfresco/AGENTS.md` e seguir `tools/aiup-alfresco/
 
 ```
 Valide o content model usando a skill content-model-validator em
-@src/main/resources/alfresco/module/l2-repo/model/content-model.xml
+@src/main/resources/alfresco/module/project-repo/model/content-model.xml
 ```
 
 ---
@@ -316,7 +316,7 @@ Em projeto **já scaffolded**, você normalmente **não** roda `scaffold` de nov
 
 ```bash
 ./tools/aiup-alfresco/scripts/aiup-command.sh render --agent cursor content-model \
-  "Adicionar aspecto l2:revisaoExterna com propriedades de data e responsável"
+  "Adicionar aspecto project:revisaoExterna com propriedades de data e responsável"
 ```
 
 2. Cole o prompt no Agent
@@ -328,8 +328,8 @@ Em projeto **já scaffolded**, você normalmente **não** roda `scaffold` de nov
 ```
 Execute o comando content-model do AIUP conforme
 @tools/aiup-alfresco/commands/content-model.md.
-Respeite @.cursor/rules/l2-alfresco-versions.mdc e o model existente em
-@src/main/resources/alfresco/module/l2-repo/model/content-model.xml.
+Respeite @.cursor/rules/project-alfresco-versions.mdc e o model existente em
+@src/main/resources/alfresco/module/project-repo/model/content-model.xml.
 ```
 
 ---
@@ -339,7 +339,7 @@ Respeite @.cursor/rules/l2-alfresco-versions.mdc e o model existente em
 ### 7.1 Atualizar o aiup-alfresco (submodule)
 
 ```bash
-cd /caminho/para/l2-repo
+cd /caminho/para/project-repo
 git submodule update --remote tools/aiup-alfresco
 ./tools/aiup-alfresco/scripts/install-cursor-pack.sh
 # Reaplicar ajustes locais em .cursor/rules/ se necessário
