@@ -1372,6 +1372,33 @@ Always discover `processDefinitionId` dynamically from `GET /process-definitions
 | Surf / Aikau web-tier web scripts | `src/main/resources/alfresco/site-webscripts/{path}/...` |
 | Java evaluators / helpers | `src/main/java/{package}/share/...` |
 
+### Repository action wiring
+
+Repository action executers are registered in the Platform JAR (`/actions`) with Spring bean ids
+following the global *Spring Beans* rule: `{prefix}.{beanName}` (camelCase after the dot), e.g.
+`sc.setWebFlag`, `sc.enableWebFlag`. Share wiring (`/share-config`) must reference those exact
+bean ids — never invent parallel Share-only action ids.
+
+| Share scenario | Share parameter / config | Value |
+|----------------|------------------------|-------|
+| `onActionSimpleRepoAction` (parameterless) | `<param name="action">` | Repository action Spring bean id (`{prefix}.{beanName}`) |
+| `onActionFormDialog` | `<param name="itemId">` | Same bean id |
+| `onActionFormDialogWithSubmitDisable` | `<param name="itemId">` | Same bean id |
+| Form dialog handlers (both above) | also require | `itemKind=action`, `mode=create`, `destination={node.nodeRef}` |
+| Action parameter form | `<config evaluator="string-compare" condition="...">` | `condition` = same bean id |
+| Folder rule action picker | `<action name="...">` in rule-config | Same bean id |
+
+**Id separation:**
+
+- **Repository action bean id** — `{prefix}.{beanName}` (e.g. `sc.enableWebFlag`); used in
+  `service-context.xml`, Share `<param name="action">`, `<param name="itemId">`, form
+  `condition`, and rule-config `<action name="...">`.
+- **DocLib UI action `id`** — project-prefixed kebab-case (e.g. `sc-web-enable`); used only
+  for Share menu `<action id="...">` and `<actionGroups>` — distinct from the repository bean id.
+
+Generate repository actions with `/actions` first; wire Share menus, dialogs, and rule UI with
+`/share-config` second.
+
 ### Naming Conventions
 
 - **Share project/module suffix**: `{artifactId}-share` in mixed layouts
