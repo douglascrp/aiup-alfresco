@@ -19,6 +19,11 @@ if [[ -n "$SHARE_CFG" ]]; then
     assert_grep "<alfresco-config" "$SHARE_CFG" "uses <alfresco-config> root"
     assert_grep "evaluator=" "$SHARE_CFG" "declares at least one config evaluator"
     assert_grep "<forms>\|<form" "$SHARE_CFG" "declares form configuration"
+    if grep -qE '<action[^>]*label-id=' "$SHARE_CFG" 2>/dev/null; then
+        _fail "DocLib <action> uses label=, not label-id" "found label-id on <action>"
+    else
+        _pass "DocLib <action> elements do not use label-id"
+    fi
 fi
 
 # ---- share-config-custom.xml location ----

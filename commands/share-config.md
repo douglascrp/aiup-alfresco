@@ -188,6 +188,7 @@ UI actions (document library and document-details menus) live in a **separate** 
 | Rule | Detail |
 |------|--------|
 | Action `id` | Project-prefixed kebab-case (e.g. `{prefix}-web-enable`) — **not** the repository bean id |
+| Action display text | Use `label="..."` (message bundle key or literal text) — **never** `label-id` on `<action>` |
 | `<param name="action">` | Must match the **Spring bean id** from `/actions` (`{prefix}.{beanName}`, e.g. `sc.enableWebFlag`) |
 | `type="javascript"` + `onActionSimpleRepoAction` | For parameterless repo actions only; uses `<param name="action">` |
 | `type="javascript"` + `onActionFormDialog` | When the repo action has parameters; uses `<param name="itemId">` equal to the bean id + action form (§1e) |
@@ -455,6 +456,7 @@ Register the class as a Spring bean in `{artifactId}-slingshot-application-conte
 |---------|------------------|---------------|
 | Edit/create forms | `node-type` / `aspect` | Putting actions inside form blocks |
 | DocLib menu actions | `DocLibActions` | Registering UI actions in `service-context.xml` |
+| DocLib action with `label-id` instead of `label` | `DocLibActions` `<action label="...">` | `label-id` on `<action>` — valid only on form `<field>` / `<set>` |
 | Action parameter forms | `string-compare` with `condition="{prefix}.{beanName}"` | `<form id="...">` with a custom itemId unrelated to the bean id |
 | Aspect pickers in DocLib | `DocumentLibrary` `<aspects>` | Only form config for aspects |
 | List indicators | `DocumentLibrary` `<indicators>` | DocLibActions block |
@@ -501,6 +503,8 @@ Register the class as a Spring bean in `{artifactId}-slingshot-application-conte
 - New custom Surf web scripts (not OOTB overrides) go under `alfresco/site-webscripts/` — use `/surf` for those
 - Static resources (icons, rule JS) go under `META-INF/resources/components/...`
 - Label keys: project-prefixed; association keys use `assoc.{prefix}_{localName}`
+- DocLib `<action>` display text: `label` attribute (message key or literal) — not `label-id`
+- Form field/set labels: `label-id` attribute (message bundle key)
 
 ---
 
@@ -530,7 +534,8 @@ After generating files, verify:
 
 - `share-config-custom.xml` is well-formed XML and lives at `src/main/resources/META-INF/share-config-custom.xml`
 - referenced QNames match the repository content model when a Platform JAR exists
-- every `label-id`, `label=`, and message key exists in the Share message bundle
+- every form `label-id`, DocLib action `label`, and message key exists in the Share message bundle
+- DocLib `<action>` elements use `label="..."` — no `<action label-id="...">`
 - DocLib `<param name="action">` and `<param name="itemId">` values match existing action bean ids in Platform JAR `service-context.xml` (`{prefix}.{beanName}`)
 - action parameter form `condition` attributes match the same bean ids as `<param name="itemId">`
 - DocLib actions that should appear in menus are listed in `<actionGroups>`

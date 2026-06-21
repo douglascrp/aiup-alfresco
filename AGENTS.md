@@ -1387,6 +1387,11 @@ bean ids — never invent parallel Share-only action ids.
 | Form dialog handlers (both above) | also require | `itemKind=action`, `mode=create`, `destination={node.nodeRef}` |
 | Action parameter form | `<config evaluator="string-compare" condition="...">` | `condition` = same bean id |
 | Folder rule action picker | `<action name="...">` in rule-config | Same bean id |
+| DocLib menu action display text | `<action label="...">` attribute | Message bundle key or literal text — **not** `label-id` |
+
+**DocLib action labels:** `<action>` elements inside `DocLibActions` use the `label` attribute for
+display text (message key or literal). Do **not** use `label-id` on `<action>` — that attribute
+belongs to form fields (`<field>`, `<set>`) only.
 
 **Id separation:**
 
@@ -1430,6 +1435,7 @@ Generate repository actions with `/actions` first; wire Share menus, dialogs, an
 | Replacing built-in Share pages when extension modules would suffice | Increases fragility and upgrade risk | Prefer additive extension modules and component insertion |
 | Generating unnecessary custom Aikau widgets when built-in widgets suffice | Increases maintenance cost and JS surface area | Prefer widget composition and existing Aikau services first |
 | Embedding repository business rules in Aikau page-model JavaScript | Moves server-side logic into brittle client-side code | Keep business rules in repository APIs or repo-side commands |
+| Using `label-id` on DocLib `<action>` elements | Share DocLib actions resolve display text via the `label` attribute, not `label-id` | Use `label="message.key"` or `label="Literal text"` on `<action>`; reserve `label-id` for form `<field>` / `<set>` only |
 
 ---
 
