@@ -117,7 +117,7 @@ See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow and [CURSOR.m
    ```
    /requirements        # Gather requirements + decide whether Share is really the UI target
    /scaffold            # Generate a Share-only project or a mixed repo+share/events layout
-   /share-config       # Generate Share forms and share-config-custom.xml
+   /share-config       # Share forms, DocLib actions, rule UI, evaluators, indicators
    /surf               # Generate Surf pages, components, and extension metadata
    /aikau              # Generate Aikau pages, widget models, and dashlet-style UI
    ```
@@ -148,7 +148,7 @@ See [PORTABILITY.md](./PORTABILITY.md) for the non-Claude workflow and [CURSOR.m
 | `/metadata-extractor` | In-Process | Any | Custom `AbstractMappingMetadataExtracter` + colocated mapping `.properties` + registry registration + unit test |
 | `/subsystem` | In-Process / Config | Any | Custom subsystem (`ChildApplicationContextFactory` + default/instance properties); authentication mode configures the `authentication.chain` (LDAP, identity-service/OIDC, external) |
 | `/aca-extension` | ACA/ADW (Angular) | Any | Full ACA/ADW UI extension: `plugin.json` manifest, `provideExtension()` providers function, NgRx actions + effects, Angular standalone components (page, sidebar), HTTP service, and integration patch instructions |
-| `/share-config` | Share JAR | Any | `share-config-custom.xml` + Share message bundle + optional evaluator stub |
+| `/share-config` | Share JAR | Any | `share-config-custom.xml`, DocLib actions, rule UI, evaluators, message bundle, slingshot context |
 | `/surf` | Share JAR | Any | Surf extension metadata + page/component web scripts + optional message bundle/evaluator |
 | `/aikau` | Share JAR | Any | Aikau page descriptors + page-model JS + optional widget module/message bundle |
 | `/events` | Out-of-Process | Any | Spring Boot event listener + ActiveMQ config |

@@ -1,6 +1,6 @@
 ---
 name: share-config
-description: Generate Share form configuration and related web-extension files for legacy Share UI customizations.
+description: Generate Share share-config-custom.xml (under META-INF/), DocLib UI actions, rule-action UI, evaluators, indicators, forms, and related web-extension files for legacy Share UI. Use whenever configuring Share actions, menus, folder rules, or share-config-custom.xml.
 disable-model-invocation: true
 ---
 

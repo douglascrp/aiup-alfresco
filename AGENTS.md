@@ -157,9 +157,12 @@ Standard project layouts for repository, Share-tier, and event-driven extensions
 ├── {name}-platform/                                 # Present in mixed layouts when repo code is needed
 │   └── src/main/resources/alfresco/module/{module-id}/
 ├── {name}-share/                                    # Present in mixed layouts when Share-tier UI is needed
-│   └── src/main/resources/alfresco/
-│       ├── web-extension/
-│       └── site-webscripts/
+│   └── src/main/resources/
+│       ├── META-INF/
+│       │   └── share-config-custom.xml              # added by /share-config
+│       └── alfresco/
+│           ├── web-extension/
+│           └── site-webscripts/
 └── {name}-events/                                   # Present in mixed layouts when async handling is needed
     └── src/main/resources/application.properties
 ```
@@ -1363,7 +1366,7 @@ Always discover `processDefinitionId` dynamically from `GET /process-definitions
 | Artifact | Path |
 |----------|------|
 | Share config root | `src/main/resources/alfresco/web-extension/` |
-| Main Share form config | `src/main/resources/alfresco/web-extension/share-config-custom.xml` |
+| Main Share form config | `src/main/resources/META-INF/share-config-custom.xml` |
 | Surf extension metadata | `src/main/resources/alfresco/web-extension/site-data/extensions/{extensionName}.xml` |
 | Share message bundles | `src/main/resources/alfresco/web-extension/messages/{bundle}.properties` |
 | Surf / Aikau web-tier web scripts | `src/main/resources/alfresco/site-webscripts/{path}/...` |

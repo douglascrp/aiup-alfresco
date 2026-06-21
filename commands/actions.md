@@ -88,5 +88,14 @@ Actions, rule conditions (`/rule-conditions`), and parameter constraints share
 
 ## Share UI / Rules Registration
 Registering the bean makes the action available programmatically and via the Action REST API.
-To surface it in the **Share Rules UI** (the action dropdown in a folder rule), a
-`share-config-custom.xml` entry in a Share JAR is also needed — use `/share-config` for that.
+
+Use `/share-config` for Share-tier wiring:
+
+| Share need | `/share-config` section |
+|------------|-------------------------|
+| Document library / details menu items | `DocLibActions` config + optional icons and evaluators |
+| Single-click enable/disable (no dialog) | Parameterless action beans here + DocLib `onActionSimpleRepoAction` |
+| Folder rule with noderef/path parameter (e.g. folder picker) | rule-config web script override + JS component (§5) |
+| Parameterless rule actions | No Share config — appear automatically in the rule dropdown |
+
+Do **not** register UI actions in `service-context.xml` or inside form `<config>` blocks.

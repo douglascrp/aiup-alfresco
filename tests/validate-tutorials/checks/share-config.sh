@@ -21,10 +21,12 @@ if [[ -n "$SHARE_CFG" ]]; then
     assert_grep "<forms>\|<form" "$SHARE_CFG" "declares form configuration"
 fi
 
+# ---- share-config-custom.xml location ----
+META_INF_FILE=$(find "$GEN" -path "*/META-INF/share-config-custom.xml" -not -path "*/target/*" | head -1) || true
+assert_file_exists "${META_INF_FILE:-/nonexistent}" \
+    "share-config-custom.xml lives under META-INF/"
+
 # ---- Share-tier boundary: nothing under alfresco/module ----
-WEB_EXT_FILE=$(find "$GEN" -path "*web-extension*" -name "share-config-custom.xml" | head -1) || true
-assert_file_exists "${WEB_EXT_FILE:-/nonexistent}" \
-    "share-config-custom.xml lives under alfresco/web-extension"
 assert_not_grep "alfresco/module" "$GEN" \
     "no Share files under alfresco/module (Share tier only)"
 
