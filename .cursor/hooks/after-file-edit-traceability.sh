@@ -7,6 +7,7 @@ set -euo pipefail
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 # shellcheck source=../../scripts/traceability-artefacts.sh
+[ -f "$ROOT_DIR/scripts/traceability-artefacts.sh" ] || exit 0
 source "$ROOT_DIR/scripts/traceability-artefacts.sh"
 
 INPUT=$(cat)
