@@ -17,7 +17,7 @@ if ! echo "$COMMAND" | grep -qE '(^|[[:space:]])(\.?/?mvn(w)?[[:space:]]|mvn(w)?
   exit 0
 fi
 
-if [ -n "$EXIT_CODE" ] && [ "$EXIT_CODE" != "null" ] && [ "$EXIT_CODE" = "0" ]; then
+if [ -z "$EXIT_CODE" ] || [ "$EXIT_CODE" = "null" ] || [ "$EXIT_CODE" = "0" ]; then
   exit 0
 fi
 
