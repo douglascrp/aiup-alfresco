@@ -48,6 +48,19 @@ copy_if_missing() {
     fi
 }
 
+copy_executable_if_missing() {
+    local src="$1"
+    local dest="$2"
+    if [ -e "$dest" ]; then
+        printf '  skip (exists): %s\n' "$dest"
+    else
+        mkdir -p "$(dirname "$dest")"
+        cp "$src" "$dest"
+        chmod +x "$dest"
+        printf '  installed: %s\n' "$dest"
+    fi
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --aiup-path)
@@ -96,14 +109,7 @@ copy_if_missing "$AIUP_ROOT/.cursor/hooks.json" \
 for hook in "$AIUP_ROOT/.cursor/hooks/"*.sh; do
     [ -f "$hook" ] || continue
     dest="$CONSUMER_ROOT/.cursor/hooks/$(basename "$hook")"
-    if [ -e "$dest" ]; then
-        cp "$hook" "$dest"
-        printf '  updated: %s\n' "$dest"
-    else
-        cp "$hook" "$dest"
-        printf '  installed: %s\n' "$dest"
-    fi
-    chmod +x "$dest"
+    copy_executable_if_missing "$hook" "$dest"
 done
 
 printf '\nGenerating slash-command skills:\n'
@@ -123,6 +129,8 @@ Next steps:
   3. Add a local version override rule if your ACS/SDK versions differ from AGENTS.md.
   4. In Agent chat, type /requirements or /scaffold to start the AIUP workflow.
   5. Re-run this script after 'git submodule update' to refresh skills.
+  6. Existing .cursor/hooks/*.sh files are preserved on re-run; delete a hook and
+     re-run to adopt an upstream version, or copy manually from the aiup-alfresco checkout.
 
 See CURSOR-INTEGRATION-GUIDE.md in the aiup-alfresco checkout for full details.
 EOF

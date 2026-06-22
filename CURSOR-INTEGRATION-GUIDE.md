@@ -124,7 +124,7 @@ cd /path/to/project-repo
 
 The script:
 
-- Installs `.cursor/rules/aiup-alfresco.mdc` and hooks (if not already present)
+- Installs `.cursor/rules/aiup-alfresco.mdc`, `hooks.json`, and `hooks/*.sh` (if not already present)
 - Generates slash-command skills in `.cursor/skills/` with paths pointing to `tools/aiup-alfresco/`
 - Preserves custom skills already present in `.cursor/skills/` (`--merge`)
 
@@ -344,6 +344,10 @@ git submodule update --remote tools/aiup-alfresco
 ./tools/aiup-alfresco/scripts/install-cursor-pack.sh
 # Reapply local adjustments in .cursor/rules/ if needed
 ```
+
+Existing `.cursor/hooks/*.sh` files are **not** overwritten on re-run (customisations are preserved).
+To adopt an upstream hook fix after a submodule update, delete the file under `.cursor/hooks/`
+and run `install-cursor-pack.sh` again, or copy the script manually from the aiup-alfresco checkout.
 
 ### 7.2 After each upstream merge
 
