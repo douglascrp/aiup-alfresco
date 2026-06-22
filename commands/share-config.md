@@ -52,9 +52,23 @@ If the requirement is clearly for ACA/ADF/custom frontend work instead of Share,
 
 `{share-project-root}/src/main/resources/META-INF/share-config-custom.xml`
 
-Generate or update a **single** root file. Append `<config>` blocks for each concern; do not split actions or forms into separate XML files.
+Generate or update a **single** root file. The document root **must** be `<alfresco-config>`; append inner `<config>` blocks for each concern inside it — do not split actions or forms into separate XML files. CI (`tests/validate-tutorials/checks/share-config.sh`) asserts the presence of `<alfresco-config>`.
+
+When creating a new file, start from this skeleton:
+
+```xml
+<alfresco-config>
+    <!-- <config> blocks from §1a–1e -->
+</alfresco-config>
+```
+
+When updating an existing file, preserve the `<alfresco-config>` wrapper and insert or merge `<config>` blocks inside it.
+
+Subsections §1a–1e show **partial** `<config>` blocks only — never emit a standalone file containing only those snippets.
 
 #### 1a. Type and aspect forms
+
+**Partial block** — append inside the single `<alfresco-config>` root from §1.
 
 ```xml
 <config evaluator="node-type" condition="{prefix}:{type}">
@@ -103,6 +117,8 @@ For associations, use `label-id="assoc.{prefix}_{assocLocalName}"` (dots in the 
 
 When requirements ask to expose aspects in the document library (add/remove from documents):
 
+**Partial block** — append inside the single `<alfresco-config>` root from §1.
+
 ```xml
 <config evaluator="string-compare" condition="DocumentLibrary">
     <aspects>
@@ -124,6 +140,8 @@ Merge `<aspects>`, `<indicators>`, and other `DocumentLibrary` children into **o
 #### 1c. Document Library — DocLib UI actions
 
 UI actions (document library and document-details menus) live in a **separate** config block with evaluator `DocLibActions`. This is **not** form configuration and **not** repository Spring wiring.
+
+**Partial block** — append inside the single `<alfresco-config>` root from §1.
 
 ```xml
 <config evaluator="string-compare" condition="DocLibActions">
@@ -205,6 +223,8 @@ UI actions (document library and document-details menus) live in a **separate** 
 
 When requirements ask for list-column icons driven by metadata:
 
+**Partial block** — append inside the single `<alfresco-config>` root from §1.
+
 ```xml
 <config evaluator="string-compare" condition="DocumentLibrary">
     <!-- merge with <aspects> in the same block when both exist -->
@@ -223,6 +243,8 @@ Share resolves the icon from `{indicator-id}-16.png` under `META-INF/resources/c
 When a DocLib action uses `onActionFormDialog` or `onActionFormDialogWithSubmitDisable`, define the
 parameter form in a **separate** `<config>` block. The `condition` attribute must equal the
 repository action Spring bean id (same value as `<param name="itemId">` in §1c).
+
+**Partial block** — append inside the single `<alfresco-config>` root from §1.
 
 ```xml
 <config evaluator="string-compare" condition="{prefix}.{actionBeanName}">
@@ -481,7 +503,7 @@ Register the class as a Spring bean in `{artifactId}-slingshot-application-conte
 
 ### Rule 6 — Merge, do not overwrite blindly
 
-- Append or update relevant `<config>` blocks in `share-config-custom.xml`
+- Append or update relevant `<config>` blocks **inside** `<alfresco-config>` in `share-config-custom.xml`
 - Do not duplicate `<config evaluator="string-compare" condition="DocumentLibrary">` blocks — merge children
 - Do not duplicate `<config evaluator="string-compare" condition="DocLibActions">` blocks
 
@@ -533,6 +555,7 @@ must follow to wire DocLib menus, dialogs, or rule UI.
 After generating files, verify:
 
 - `share-config-custom.xml` is well-formed XML and lives at `src/main/resources/META-INF/share-config-custom.xml`
+- `share-config-custom.xml` uses `<alfresco-config>` as the document root (required by CI)
 - referenced QNames match the repository content model when a Platform JAR exists
 - every form `label-id`, DocLib action `label`, and message key exists in the Share message bundle
 - DocLib `<action>` elements use `label="..."` — no `<action label-id="...">`
