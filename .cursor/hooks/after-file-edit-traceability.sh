@@ -11,7 +11,7 @@ ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 source "$ROOT_DIR/scripts/traceability-artefacts.sh"
 
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '
+FILE_PATH=$(printf '%s\n' "$INPUT" | jq -r '
   .tool_input.file_path // .tool_input.path // .file_path // .path // .uri // empty
 ')
 

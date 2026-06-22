@@ -6,8 +6,8 @@
 set -euo pipefail
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.command // empty')
-EXIT_CODE=$(echo "$INPUT" | jq -r '.exitCode // .exit_code // .code // empty')
+COMMAND=$(printf '%s\n' "$INPUT" | jq -r '.command // empty')
+EXIT_CODE=$(printf '%s\n' "$INPUT" | jq -r '.exitCode // .exit_code // .code // empty')
 
 if [ -z "$COMMAND" ]; then
   exit 0
@@ -21,7 +21,7 @@ if [ -z "$EXIT_CODE" ] || [ "$EXIT_CODE" = "null" ] || [ "$EXIT_CODE" = "0" ]; t
   exit 0
 fi
 
-OUTPUT=$(echo "$INPUT" | jq -r '
+OUTPUT=$(printf '%s\n' "$INPUT" | jq -r '
   .output // .stdout // .stderr //
   (.stdout + "\n" + .stderr) //
   empty
