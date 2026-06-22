@@ -70,14 +70,14 @@ You need the repository with the Cursor pack already in place (`main` branch wit
 ### Option A — Local clone (recommended to get started)
 
 ```bash
-mkdir -p ~/Projetos/opensource/aborroy
-git clone https://github.com/aborroy/aiup-alfresco.git ~/Projetos/opensource/aborroy/aiup-alfresco
+mkdir -p ~/tools
+git clone https://github.com/aborroy/aiup-alfresco.git ~/tools/aiup-alfresco
 ```
 
 If you use a local fork (with Cursor adaptations), clone your fork:
 
 ```bash
-git clone <your-fork-url>/aiup-alfresco.git ~/Projetos/opensource/aborroy/aiup-alfresco
+git clone <your-fork-url>/aiup-alfresco.git ~/tools/aiup-alfresco
 ```
 
 ### Option B — Submodule inside the Alfresco project (recommended for teams)
